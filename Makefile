@@ -8,6 +8,11 @@ STABLE_VER := $(shell cat molecule/shared/stable.ver)
 SDBIN := $(SDROOT)/securedrop/bin
 DEVSHELL := $(SDBIN)/dev-shell
 
+ifdef USE_PODMAN
+OCI_BIN=podman
+else
+OCI_BIN=docker
+endif
 
 ######################################
 #
@@ -16,9 +21,10 @@ DEVSHELL := $(SDBIN)/dev-shell
 ######################################
 
 .PHONY: venv
-venv:  ## Provision a Python 3 virtualenv for development.
+venv: hooks  ## Provision a Python 3 virtualenv for development.
 	@echo "███ Preparing Python 3 virtual environment..."
 	@$(SDROOT)/devops/scripts/boot-strap-venv.sh
+	@echo "Make sure to run: source .venv/bin/activate"
 	@echo
 
 .PHONY: update-admin-pip-requirements
@@ -28,28 +34,8 @@ update-admin-pip-requirements:  ## Update admin requirements.
 .PHONY: update-python3-requirements
 update-python3-requirements:  ## Update Python 3 requirements with pip-compile.
 	@echo "███ Updating Python 3 requirements files..."
-	@$(DEVSHELL) pip-compile --generate-hashes \
-		--allow-unsafe \
-		--output-file requirements/python3/develop-requirements.txt \
-		../admin/requirements-ansible.in \
-		../admin/requirements.in \
-		requirements/python3/develop-requirements.in
-	@$(DEVSHELL) pip-compile --generate-hashes \
-		--allow-unsafe \
-		--output-file requirements/python3/test-requirements.txt \
-		requirements/python3/test-requirements.in
-	@$(DEVSHELL) pip-compile --generate-hashes \
-				--allow-unsafe \
-		--output-file requirements/python3/securedrop-app-code-requirements.txt \
-		requirements/python3/securedrop-app-code-requirements.in
-	@$(DEVSHELL) pip-compile --generate-hashes \
-		--allow-unsafe \
-		--output-file requirements/python3/docker-requirements.txt \
-		requirements/python3/docker-requirements.in
-	@$(DEVSHELL) pip-compile --generate-hashes \
-		--allow-unsafe \
-		--output-file requirements/python3/translation-requirements.txt \
-		requirements/python3/translation-requirements.in
+	@SLIM_BUILD=1 UBUNTU_VERSION=focal $(DEVSHELL) $(SDBIN)/update-requirements
+	@SLIM_BUILD=1 UBUNTU_VERSION=noble $(DEVSHELL) $(SDBIN)/update-requirements
 
 .PHONY: update-pip-requirements
 update-pip-requirements: update-admin-pip-requirements update-python3-requirements ## Update all requirements with pip-compile.
@@ -70,10 +56,8 @@ ansible-config-lint: ## Run custom Ansible linting tasks.
 .PHONY: app-lint
 app-lint:  ## Test pylint compliance.
 	@echo "███ Linting application code..."
-	@cd securedrop && find . -name '*.py' | xargs pylint --reports=no --errors-only \
+	@cd securedrop && find . -name '*.py' -or -path './scripts/*' | xargs pylint --reports=no --errors-only \
 	   --disable=no-name-in-module \
-	   --disable=unexpected-keyword-arg \
-	   --disable=too-many-function-args \
 	   --disable=import-error \
 	   --disable=no-member \
 	   --max-line-length=100
@@ -82,23 +66,37 @@ app-lint:  ## Test pylint compliance.
 .PHONY: app-lint-full
 app-lint-full: ## Test pylint compliance, with no checks disabled.
 	@echo "███ Linting application code with no checks disabled..."
-	@cd securedrop && find . -name '*.py' | xargs pylint
+	@cd securedrop && find . -name '*.py' -or -path './scripts/*' | xargs pylint
 	@echo
 
-.PHONY: flake8
-flake8:  ## Validate PEP8 compliance for Python source files.
-	@echo "███ Running flake8..."
-	@flake8
+.PHONY: check-ruff
+check-ruff:  ## Check linting and formatting of Python source files.
+	@echo "███ Running ruff..."
+	@ruff format . --diff
+	@ruff check .
 	@echo
+
+.PHONY: ruff
+ruff: ## Update Python source file formatting.
+	@ruff format .
+	@ruff check . --fix
+
+fix: ruff ## Apply automatic fixes.
 
 # The --disable=names is required to use the BEM syntax
 # # https://csswizardry.com/2013/01/mindbemding-getting-your-head-round-bem-syntax/
 .PHONY: html-lint
 html-lint:  ## Validate HTML in web application template files.
 	@echo "███ Linting application templates..."
-	@html_lint.py --printfilename --disable=optional_tag,extra_whitespace,indentation,names \
+	@html_lint.py --printfilename --disable=optional_tag,extra_whitespace,indentation,names,quotation,protocol \
 		securedrop/source_templates/*.html securedrop/journalist_templates/*.html
 	@echo
+
+.PHONY: rust-lint
+rust-lint: ## Lint Rust code
+	@echo "███ Linting Rust code..."
+	cargo fmt --check
+	cargo clippy
 
 .PHONY: shellcheck
 shellcheck:  ## Lint shell scripts.
@@ -106,50 +104,128 @@ shellcheck:  ## Lint shell scripts.
 	@$(SDROOT)/devops/scripts/shellcheck.sh
 	@echo
 
-.PHONY: shellcheckclean
-shellcheckclean:  ## Clean up temporary container associated with shellcheck target.
-	@docker rm -f $(SDROOT)/shellcheck-targets
-
 .PHONY: typelint
 typelint:  ## Run mypy type linting.
 	@echo "███ Running mypy type checking..."
-	@mypy ./securedrop ./admin
+	@$(SDROOT)/securedrop/bin/run-mypy
 	@echo
 
 .PHONY: yamllint
 yamllint:  ## Lint YAML files (does not validate syntax!).
 	@echo "███ Linting YAML files..."
-	@$(SDROOT)/devops/scripts/yaml-lint.sh
+	@yamllint --strict .
 	@echo
 
+.PHONY: zizmor
+zizmor:  ## Lint GitHub Actions workflows.
+	@echo "███ Linting GitHub Actions workflows..."
+	@zizmor .
+	@echo
+
+# While the order mostly doesn't matter here, keep "check-ruff" first, since it
+# gives the broadest coverage and runs (and therefore fails) fastest.
 .PHONY: lint
-lint: ansible-config-lint app-lint flake8 html-lint shellcheck typelint yamllint ## Runs all lint checks
+lint: check-ruff ansible-config-lint app-lint html-lint shellcheck typelint yamllint zizmor check-strings check-supported-locales check-desktop-files ## Runs all lint checks
 
 .PHONY: safety
 safety:  ## Run `safety check` to check python dependencies for vulnerabilities.
 	@command -v safety || (echo "Please run 'pip install -U safety'."; exit 1)
 	@echo "███ Running safety..."
-	@for req_file in `find . -type f -name '*requirements.txt'`; do \
+	@for req_file in `find . -type f -name '*requirements.txt' | grep -v .venv`; do \
 		echo "Checking file $$req_file" \
 		&& safety check \
-		--ignore 42050 \
+		--ignore 42923 \
+		--ignore 42926 \
+		--ignore 45185 \
+		--ignore 49337 \
+		--ignore 51385 \
+		--ignore 51668 \
+		--ignore 52322 \
+		--ignore 52495 \
+		--ignore 52510 \
+		--ignore 52518 \
+		--ignore 53048 \
+		--ignore 53868 \
+		--ignore 53869 \
+		--ignore 54219 \
+		--ignore 54229 \
+		--ignore 54230 \
+		--ignore 54421 \
+		--ignore 54564 \
+		--ignore 54709 \
+		--ignore 55261 \
+		--ignore 58912 \
+		--ignore 59473 \
+		--ignore 60026 \
+		--ignore 60350 \
+		--ignore 60789 \
+		--ignore 60841 \
+		--ignore 61601 \
+		--ignore 61893 \
+		--ignore 62019 \
+		--ignore 62044 \
+		--ignore 62817 \
+		--ignore 63066 \
+		--ignore 63227 \
+		--ignore 65193 \
+		--ignore 65212 \
+		--ignore 65278 \
+		--ignore 65401 \
+		--ignore 65505 \
+		--ignore 65510 \
+		--ignore 65511 \
+		--ignore 65647 \
+		--ignore 66667 \
+		--ignore 66700 \
+		--ignore 66704 \
+		--ignore 66710 \
+		--ignore 66777 \
+		--ignore 67599 \
+		--ignore 67895 \
+		--ignore 70612 \
+		--ignore 70895 \
+		--ignore 71064 \
+		--ignore 71591 \
+		--ignore 71594 \
+		--ignore 71595 \
+		--ignore 71608 \
+		--ignore 71680 \
+		--ignore 71681 \
+		--ignore 71684 \
+		--ignore 73302 \
+		--ignore 73711 \
+		--ignore 73889 \
+		--ignore 73969 \
+		--ignore 74221 \
+		--ignore 74261 \
+		--ignore 74735 \
+		--ignore 76752 \
+		--ignore 77323 \
+		--ignore 77316 \
 		--full-report -r $$req_file \
 		&& echo -e '\n' \
 		|| exit 1; \
 	done
 	@echo
 
-# Bandit is a static code analysis tool to detect security vulnerabilities in Python applications
-# https://wiki.openstack.org/wiki/Security/Projects/Bandit
-.PHONY: bandit
-
-bandit: test-config ## Run bandit with medium level excluding test-related folders.
-	@command -v bandit || (echo "Please run 'pip install -U bandit'."; exit 1)
-	@echo "███ Running bandit..."
-	@bandit -ll --exclude ./admin/.tox,./admin/.venv,./admin/.eggs,./molecule,./testinfra,./securedrop/tests,./.tox,./.venv*,securedrop/config.py --recursive .
-	@echo "███ Running bandit on securedrop/config.py..."
-	@bandit -ll --skip B108 securedrop/config.py
+# Semgrep is a static code analysis tool to detect security vulnerabilities in Python applications
+# This configuration uses the public "p/r2c-security-audit" ruleset
+.PHONY: semgrep
+semgrep:
+	@command -v semgrep || (echo "Please run 'pip install -U semgrep'."; exit 1)
+	@echo "███ Running semgrep on securedrop/..."
+	@semgrep --exclude "securedrop/tests/" --error --strict --metrics off --max-chars-per-line 200 --verbose --config "p/r2c-security-audit" securedrop
 	@echo
+
+
+# check dependencies in Cargo.lock
+.PHONY: rust-audit
+rust-audit:
+	@echo "███ Running Rust dependency checks..."
+	@cargo install cargo-audit
+	@cargo audit
+	@echo
+
 
 #############
 #
@@ -159,18 +235,13 @@ bandit: test-config ## Run bandit with medium level excluding test-related folde
 
 securedrop/config.py: ## Generate the test SecureDrop application config.
 	@echo "███ Generating securedrop/config.py..."
-	@cd securedrop && source_secret_key=$(shell head -c 32 /dev/urandom | base64) \
-	journalist_secret_key=$(shell head -c 32 /dev/urandom | base64) \
-	scrypt_id_pepper=$(shell head -c 32 /dev/urandom | base64) \
-	scrypt_gpg_pepper=$(shell head -c 32 /dev/urandom | base64) \
-	python -c 'import os; from jinja2 import Environment, FileSystemLoader; \
-		 env = Environment(loader=FileSystemLoader(".")); \
-		 ctx = {"securedrop_app_gpg_fingerprint": "65A1B5FF195B56353CC63DFFCC40EF1228271441"}; \
-		 ctx.update(dict((k, {"stdout":v}) for k,v in os.environ.items())); \
-		 ctx = open("config.py", "w").write(env.get_template("config.py.example").render(ctx))'
-	@echo >> securedrop/config.py
-	@echo "SUPPORTED_LOCALES = $$(if test -f /opt/venvs/securedrop-app-code/bin/python3; then ./securedrop/i18n_tool.py list-locales --python; else DOCKER_BUILD_VERBOSE=false $(DEVSHELL) ./i18n_tool.py list-locales --python; fi)" | sed 's/\r//' >> securedrop/config.py
-	@echo
+	@./securedrop/bin/dev-config
+
+HOOKS_DIR=.githooks
+
+.PHONY: hooks
+hooks:  ## Configure Git to use the hooks provided by this repository
+	git config core.hooksPath "$(HOOKS_DIR)"
 
 .PHONY: test-config
 test-config: securedrop/config.py
@@ -178,19 +249,44 @@ test-config: securedrop/config.py
 .PHONY: dev
 dev:  ## Run the development server in a Docker container.
 	@echo "███ Starting development server..."
-	@OFFSET_PORTS='false' DOCKER_BUILD_VERBOSE='true' $(DEVSHELL) $(SDBIN)/run
+	@OFFSET_PORTS='false' DOCKER_BUILD_VERBOSE='true' SLIM_BUILD=1 $(DEVSHELL) $(SDBIN)/run
 	@echo
 
 .PHONY: dev-tor
 dev-tor:  ## Run the development server with onion services in a Docker container.
-	@echo "███ Starting development server..."
-	@OFFSET_PORTS='false' DOCKER_BUILD_VERBOSE='true' USE_TOR='true' $(DEVSHELL) $(SDBIN)/run
+	@echo "███ Starting development server with onion services..."
+	@OFFSET_PORTS='false' DOCKER_BUILD_VERBOSE='true' USE_TOR='true' SLIM_BUILD=1 $(DEVSHELL) $(SDBIN)/run
 	@echo
+
+.PHONY:
+dev-get-id:  ## Get the ID of the running "make dev" or "make dev-tor" container.
+	@$(OCI_BIN) ps --format json --filter "name=securedrop-dev" --format '{{.ID}}'
+
+.PHONY:
+dev-enter:  ## Start a shell directly in the running "make dev" or "make dev-tor" container.
+	@$(OCI_BIN) exec -it \
+		$(shell make -s dev-get-id) \
+		bash
+
+.PHONY: dev-load-data
+dev-load-data:  ## Run "loaddata.py" in the running "make dev" or "make dev-tor" container. Set $NUM_JOURNALISTS and/or $NUM_SOURCES on the command line as needed.
+	@$(OCI_BIN) exec -it \
+		-e NUM_JOURNALISTS \
+		-e NUM_SOURCES \
+		$(shell make -s dev-get-id) \
+		./loaddata.py $(SD_LOADDATA_ARGS)
+
+.PHONY: demo-landing-page
+demo-landing-page: ## Serve the landing page for the SecureDrop demo
+	@echo "███ Building Docker image..."
+	docker build -t sd-demo-landing-page -f devops/demo/landing-page/Dockerfile .
+	@echo "███ Running container and serving on port 8000..."
+	docker run -p 8000:8000 sd-demo-landing-page
 
 .PHONY: staging
 staging:  ## Create a local staging environment in virtual machines (Focal)
 	@echo "███ Creating staging environment on Ubuntu Focal..."
-	@$(SDROOT)/devops/scripts/create-staging-env focal
+	@$(SDROOT)/devops/scripts/create-staging-env
 	@echo
 
 .PHONY: testinfra
@@ -210,6 +306,9 @@ clean:  ## DANGER! Delete all uncommitted files, virtual machines, Onion address
 	@$(SDROOT)/devops/clean
 	@echo
 
+.PHONY: otp
+otp: ## Show (and opportunistically copy) the current development OTP (to the clipboard)
+	@$(SDROOT)/devops/scripts/otp-code.sh
 
 #########
 #
@@ -219,18 +318,41 @@ clean:  ## DANGER! Delete all uncommitted files, virtual machines, Onion address
 
 .PHONY: test
 test:  ## Run the test suite in a Docker container.
-	@echo "███ Running SecureDrop application tests..."
+	@echo "███ Running all SecureDrop tests..."
 	@$(DEVSHELL) $(SDBIN)/run-test -v $${TESTFILES:-tests}
 	@echo
 
-.PHONY: test-focal
-test-focal:  test
+.PHONY: test-app
+test-app:  ## Run the application tests
+	@echo "███ Running SecureDrop application tests..."
+	TESTFILES="$(shell cd securedrop; echo tests/test*py)" $(MAKE) test
+
+.PHONY: test-functional
+test-functional:  ## Run the functional tests
+	@echo "███ Running SecureDrop functional tests..."
+	TESTFILES="$(shell cd securedrop; echo tests/functional/test*py)" $(MAKE) test
+
+.PHONY: test-pageslayout
+test-pageslayout:  ## Run the page layout tests
+	@echo "███ Running page layout tests..."
+	TESTFILES="$(shell cd securedrop; echo tests/functional/pageslayout/test*py)" $(MAKE) test
+
+.PHONY: rust-test
+rust-test:
+	@echo "███ Running Rust tests..."
+	cargo test
 
 .PHONY: validate-test-html
 validate-test-html:
-	@echo "███ Validating HTML source from $(shell find securedrop/tests/pageslayout/html -name "*.html" | wc -l | xargs echo -n) page-layout test(s)"
-	@$(DEVSHELL) html5validator tests/pageslayout/html
+	@echo "███ Validating HTML source from $(shell find securedrop/tests/functional/pageslayout/html -name "*.html" | wc -l | xargs echo -n) page-layout test(s)"
+	@$(DEVSHELL) html5validator tests/functional/pageslayout/html
 	@echo
+
+.PHONY: accessibility-summary
+accessibility-summary:
+	@echo "███ Processing accessibility results..."
+	@$(DEVSHELL) $(SDBIN)/summarize-accessibility-info
+	cat securedrop/tests/functional/pageslayout/accessibility-info/summary.txt
 
 .PHONY: docker-vnc
 docker-vnc:  ## Open a VNC connection to a running Docker instance.
@@ -256,37 +378,149 @@ upgrade-destroy:  ## Destroy an upgrade test environment.
 #
 ##############
 
-.PHONY: translate
-translate:  ## Update POT files from translated strings in source code.
-	@echo "Updating translations..."
-	@$(DEVSHELL) $(SDROOT)/securedrop/i18n_tool.py translate-messages --extract-update
-	@$(DEVSHELL) $(SDROOT)/securedrop/i18n_tool.py translate-desktop --extract-update
-	@echo
+# Global configuration:
+I18N_CONF=securedrop/i18n.json
+I18N_LIST=securedrop/i18n.rst
+
+# securedrop/securedrop configuration:
+LOCALE_DIR=securedrop/translations
+POT=$(LOCALE_DIR)/messages.pot
+
+# securedrop/desktop configuration:
+DESKTOP_BASE=install_files/ansible-base/roles/tails-config/templates
+DESKTOP_LOCALE_DIR=$(DESKTOP_BASE)/locale
+DESKTOP_I18N_CONF=$(DESKTOP_LOCALE_DIR)/LINGUAS
+DESKTOP_POT=$(DESKTOP_LOCALE_DIR)/messages.pot
+
+## Global
+
+.PHONY: check-strings
+check-strings: $(POT) $(DESKTOP_POT) ## Check that the translation catalogs are up to date with source code.
+	@echo "███ Checking translation catalogs..."
+	@$(MAKE) --no-print-directory extract-strings
+	@git diff --quiet $^ || { echo "Translation catalogs are out of date. Please run \"make extract-strings\" and commit the changes."; exit 1; }
+
+.PHONY: extract-strings
+extract-strings: $(POT) $(DESKTOP_POT) ## Extract translatable strings from source code.
+	@$(MAKE) --always-make --no-print-directory $^
+
+## securedrop/securedrop
+
+# Derive POT from sources.
+$(POT): securedrop
+	@echo "updating catalog template: $@"
+	@mkdir -p ${LOCALE_DIR}
+	@pybabel extract \
+		-F securedrop/babel.cfg \
+		--charset=utf-8 \
+		--output=${POT} \
+		--project="SecureDrop" \
+		--msgid-bugs-address=securedrop@freedom.press \
+		--copyright-holder="Freedom of the Press Foundation" \
+		--add-comments="Translators:" \
+		--strip-comments \
+		--add-location=never \
+		--no-wrap \
+		--ignore-dirs tests \
+		$^
+	@sed -i -e '/^"POT-Creation-Date/d' $@
+
+## securedrop/desktop
+
+.PHONY: check-desktop-files
+check-desktop-files: ${DESKTOP_BASE}/*.j2
+	@echo "███ Checking desktop translation catalogs..."
+	@$(MAKE) --always-make --no-print-directory update-desktop-files
+	@git diff --quiet $^ || { echo "Desktop files are out of date. Please run \"make update-desktop-files\" and commit the changes. (If this is a translation pull request from Weblate, a maintainer can append the new commit to this branch so that CI passes before merge.)"; exit 1; }
+
+.PHONY: update-desktop-files
+update-desktop-files: ${DESKTOP_BASE}/*.j2
+	@$(MAKE) --always-make --no-print-directory $^
+
+# Derive POT from templates.
+$(DESKTOP_POT): ${DESKTOP_BASE}/*.in
+	pybabel extract \
+		-F securedrop/babel.cfg \
+		--output=${DESKTOP_POT} \
+		--project=SecureDrop \
+		--msgid-bugs-address=securedrop@freedom.press \
+		--copyright-holder="Freedom of the Press Foundation" \
+		--add-location=never \
+		--sort-output \
+		$^
+	@sed -i -e '/^"POT-Creation-Date/d' $@
+
+# Render desktop files from templates.  msgfmt needs each
+# "$LANG/LC_MESSAGES/messages.po" file in "$LANG.po".
+%.j2: %.j2.in
+	@find ${DESKTOP_LOCALE_DIR}/* \
+		-maxdepth 0 \
+		-type d \
+		-exec bash -c 'locale="$$(basename {})"; cp ${DESKTOP_LOCALE_DIR}/$${locale}/LC_MESSAGES/messages.po $(DESKTOP_LOCALE_DIR)/$${locale}.po' \;
+	@msgfmt \
+		-d ${DESKTOP_LOCALE_DIR} \
+		--desktop \
+		--keyword=Name \
+		--template $< \
+		--output-file $@
+	@rm ${DESKTOP_LOCALE_DIR}/*.po
+
+# Render the list of desktop locales from those in entries "i18n.json" that
+# include a "desktop" key.
+$(DESKTOP_I18N_CONF):
+	@jq --raw-output '.supported_locales[].desktop | values' ${I18N_CONF} > $@
+
+## Supported locales
+
+.PHONY: check-supported-locales
+check-supported-locales: $(I18N_LIST) $(DESKTOP_I18N_CONF) ## Check that the desktop and documentation lists of supported locales are up to date.
+	@echo "███ Checking supported locales..."
+	@$(MAKE) --no-print-directory update-supported-locales
+	@git diff --quiet $^ || { echo "Desktop and/or documentation lists of supported locales are out of date. Please run \"make update-supported-locales\" and commit the changes."; exit 1; }
+
+.PHONY: count-supported-locales
+count-supported-locales: ## Return the number of supported locales.
+	@jq --raw-output '.supported_locales | length' ${I18N_CONF}
+
+.PHONY: update-supported-locales
+update-supported-locales: $(I18N_LIST) $(DESKTOP_I18N_CONF) ## Render the desktop and documentation list of supported locales.
+	@$(MAKE) --always-make --no-print-directory $^
+
+# Render documentation list from "i18n.json".
+${I18N_LIST}: ${I18N_CONF}
+	@echo '.. GENERATED BY "make update-supported-locales":' > $@
+	@jq --raw-output \
+		'.supported_locales | to_entries | map("* \(.value.name) (``\(.key)``)") | join("\n")' \
+		$< >> $@
+
+.PHONY: supported-locales
+supported-locales: ## List supported locales (languages).
+	@jq --compact-output '.supported_locales | keys' ${I18N_CONF}
+
+## Utilities
 
 .PHONY: translation-test
-translation-test:  ## Run page layout tests in all supported languages.
+translation-test: ## Run page layout tests in all supported languages.
 	@echo "Running translation tests..."
 	@$(DEVSHELL) $(SDBIN)/translation-test $${LOCALES}
 	@echo
 
-.PHONY: list-translators
-list-translators:  ## Collect the names of translators since the last merge from Weblate.
-	@$(DEVSHELL) $(SDROOT)/securedrop/i18n_tool.py list-translators
-
-.PHONY: list-all-translators
-list-all-translators:  ## Collect the names of all translators in the project's history.
-	@$(DEVSHELL) $(SDROOT)/securedrop/i18n_tool.py list-translators --all
-
 .PHONY: update-user-guides
-update-user-guides:  ## Regenerate docs screenshots. Set DOCS_REPO_DIR to repo checkout root.
+update-user-guides: ## Regenerate docs screenshots. Set DOCS_REPO_DIR to repo checkout root.
 ifndef DOCS_REPO_DIR
 	$(error DOCS_REPO_DIR must be set to the documentation repo checkout root.)
 endif
 	@echo "Running page layout tests to update screenshots used in user guide..."
 	@$(DEVSHELL) $(SDBIN)/generate-docs-screenshots
 	@echo "Copying screenshots..."
-	cp securedrop/tests/pageslayout/screenshots/en_US/*.png $${DOCS_REPO_DIR}/docs/images/manual/screenshots
+	cp securedrop/tests/functional/pageslayout/screenshots/en_US/*.png $${DOCS_REPO_DIR}/docs/images/manual/screenshots
 	@echo
+
+.PHONY: verify-mo
+verify-mo: ## Verify that all gettext machine objects (.mo) are reproducible from their catalogs (.po).
+	@TERM=dumb devops/scripts/verify-mo.py ${DESKTOP_LOCALE_DIR}/*
+	@# All good; now clean up.
+	@git restore "${LOCALE_DIR}/**/*.po"
 
 
 ###########
@@ -295,17 +529,57 @@ endif
 #
 ###########
 
+SCRIPT_MESSAGE="You can now examine or commit the log at:"
+SCRIPT_OUTPUT_PREFIX=$(SDROOT)/build/$(shell date +%Y%m%d)
+SCRIPT_OUTPUT_EXT=log
+
 .PHONY: build-debs
-build-debs: ## Build and test SecureDrop Debian packages (for Focal)
-	@echo "Building SecureDrop Debian packages for Focal..."
-	@$(SDROOT)/devops/scripts/build-debs.sh
+build-debs: OUT:=$(SCRIPT_OUTPUT_PREFIX)-securedrop.$(SCRIPT_OUTPUT_EXT)
+build-debs: ## Build and test SecureDrop Debian packages
+	@echo "Building SecureDrop Debian packages..."
+	@export TERM=dumb
+	@script \
+		--command $(SDROOT)/builder/build-debs.sh --return \
+		$(OUT)
 	@echo
+	@echo "$(SCRIPT_MESSAGE)"
+	@echo "$(OUT)"
 
 .PHONY: build-debs-notest
-build-debs-notest: ## Build SecureDrop Debian packages (for Focal) without running tests.
-	@echo "Building SecureDrop Debian packages for Focal; skipping tests..."
-	@$(SDROOT)/devops/scripts/build-debs.sh notest
+build-debs-notest: OUT:=$(SCRIPT_OUTPUT_PREFIX)-securedrop.$(SCRIPT_OUTPUT_EXT)
+build-debs-notest: ## Build SecureDrop Debian packages without running tests.
+	@echo "Building SecureDrop Debian packages, skipping tests..."
+	@export TERM=dumb
+	@NOTEST=1 script \
+		--command $(SDROOT)/builder/build-debs.sh --return \
+		$(OUT)
 	@echo
+	@echo "$(SCRIPT_MESSAGE)"
+	@echo "$(OUT)"
+
+.PHONY: build-debs-ossec
+build-debs-ossec: OUT:=$(SCRIPT_OUTPUT_PREFIX)-securedrop-ossec.$(SCRIPT_OUTPUT_EXT)
+build-debs-ossec: ## Build OSSEC Debian packages
+	@echo "Building OSSEC Debian packages"
+	@export TERM=dumb
+	@WHAT=ossec script \
+		--command $(SDROOT)/builder/build-debs.sh --return \
+		$(OUT)
+	@echo
+	@echo "$(SCRIPT_MESSAGE)"
+	@echo "$(OUT)"
+
+.PHONY: build-debs-ossec-notest
+build-debs-ossec-notest: OUT:=$(SCRIPT_OUTPUT_PREFIX)-securedrop-ossec.$(SCRIPT_OUTPUT_EXT)
+build-debs-ossec-notest: ## Build OSSEC Debian packages without running tests
+	@echo "Building OSSEC Debian packages, skipping tests..."
+	@export TERM=dumb
+	@NOTEST=1 WHAT=ossec script \
+	       --command $(SDROOT)/builder/build-debs.sh --return \
+	       $(OUT)
+	@echo
+	@echo "$(SCRIPT_MESSAGE)"
+	@echo "$(OUT)"
 
 
 ########################
@@ -332,31 +606,16 @@ ci-deb-tests:  ## Test SecureDrop Debian packages in CI environment.
 	@$(SDROOT)/devops/scripts/test-built-packages.sh
 	@echo
 
-.PHONY: build-gcloud-docker
-build-gcloud-docker:  ## Build Docker container for Google Cloud SDK.
-	@echo "Building Docker container for Google Cloud SDK..."
-	@echo "${GCLOUD_VERSION}" > devops/gce-nested/gcloud-container.ver && \
-	@docker build --build-arg="GCLOUD_VERSION=${GCLOUD_VERSION}" \
-				 -f devops/docker/Dockerfile.gcloud \
-				 -t "quay.io/freedomofpress/gcloud-sdk:${GCLOUD_VERSION}" .
-	@echo
-
 .PHONY: vagrant-package
 vagrant-package:  ## Package a Vagrant box of the last stable SecureDrop release.
 	@echo "███ Packaging Vagrant box of last stable SecureDrop release."
 	@devops/scripts/vagrant-package
 	@echo
 
-.PHONY: fetch-tor-packages
-fetch-tor-packages:  ## Retrieves the most recent Tor packages, for apt repo.
-	@echo "Fetching most recent Tor packages..."
-	@$(SDROOT)/devops/scripts/fetch-tor-packages.sh
-	@echo
-
 # Explanation of the below shell command should it ever break.
 # 1. Set the field separator to ":  ##" and any make targets that might appear between : and ##
 # 2. Use sed-like syntax to remove the make targets
-# 3. Format the split fields into $$1) the target name (in blue) and $$2) the target descrption
+# 3. Format the split fields into $$1) the target name (in blue) and $$2) the target description
 # 4. Pass this file as an arg to awk
 # 5. Sort it alphabetically
 # 6. Format columns with colon as delimiter.

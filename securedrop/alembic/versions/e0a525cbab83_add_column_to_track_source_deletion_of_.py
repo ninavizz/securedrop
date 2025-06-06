@@ -5,9 +5,9 @@ Revises: 2d0ce3ee5bdc
 Create Date: 2018-08-02 00:07:59.242510
 
 """
-from alembic import op
-import sqlalchemy as sa
 
+import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "e0a525cbab83"
@@ -16,7 +16,7 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     conn = op.get_bind()
     conn.execute("PRAGMA legacy_alter_table=ON")
     # Schema migration
@@ -64,6 +64,6 @@ def upgrade():
     op.drop_table("replies_tmp")
 
 
-def downgrade():
+def downgrade() -> None:
     with op.batch_alter_table("replies", schema=None) as batch_op:
         batch_op.drop_column("deleted_by_source")

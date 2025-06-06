@@ -1,0 +1,39 @@
+name: Security
+on:
+  push:
+  pull_request:
+  merge_group:
+  schedule:
+    - cron: '0 3 * * *'
+
+jobs:
+  rust-audit:
+    runs-on: ubuntu-latest
+    # Keep version in sync with rust-toolchain.toml
+    container: rust:1.87.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check Rust dependencies
+        run: |
+          make rust-audit
+
+  static-analysis-and-no-known-cves:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+      - name: Install dependencies
+        run: |
+          pip install safety semgrep
+      - name: Check Python dependencies for CVEs
+        run: |
+          make safety
+      - name: Run static security testing on source code with semgrep
+        run: |
+          make semgrep

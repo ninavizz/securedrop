@@ -1,11 +1,10 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 import sqlalchemy
 from flask import session
-
-from sdconfig import config
-from source_user import SourceUser, authenticate_source_user, InvalidPassphraseError
+from sdconfig import SecureDropConfig
+from source_user import InvalidPassphraseError, SourceUser, authenticate_source_user
 
 if TYPE_CHECKING:
     from passphrases import DicewarePassphrase
@@ -36,9 +35,7 @@ class SessionManager:
 
     @classmethod
     def log_user_in(
-        cls,
-        db_session: sqlalchemy.orm.Session,
-        supplied_passphrase: "DicewarePassphrase"
+        cls, db_session: sqlalchemy.orm.Session, supplied_passphrase: "DicewarePassphrase"
     ) -> SourceUser:
         # Validate the passphrase; will raise an exception if it is not valid
         source_user = authenticate_source_user(
@@ -49,8 +46,11 @@ class SessionManager:
         session[cls._SESSION_COOKIE_KEY_FOR_CODENAME] = supplied_passphrase
 
         # Save the session expiration date in the user's session cookie
+        config = SecureDropConfig.get_current()
         session_duration = timedelta(minutes=config.SESSION_EXPIRATION_MINUTES)
-        session[cls._SESSION_COOKIE_KEY_FOR_EXPIRATION_DATE] = datetime.utcnow() + session_duration
+        session[cls._SESSION_COOKIE_KEY_FOR_EXPIRATION_DATE] = (
+            datetime.now(timezone.utc) + session_duration
+        )
 
         return source_user
 
@@ -77,7 +77,7 @@ class SessionManager:
             cls.log_user_out()
             raise UserNotLoggedIn()
 
-        if datetime.utcnow() >= date_session_expires:
+        if datetime.now(timezone.utc) >= date_session_expires:
             cls.log_user_out()
             raise UserSessionExpired()
 

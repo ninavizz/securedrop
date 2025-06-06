@@ -16,8 +16,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 import collections
-
-from typing import Dict, List
+import json
+from pathlib import Path
+from typing import DefaultDict, List, OrderedDict, Set
 
 from babel.core import (
     Locale,
@@ -26,10 +27,11 @@ from babel.core import (
     negotiate_locale,
     parse_locale,
 )
-from flask import Flask, g, request, session
+from flask import Flask, current_app, g, request, session
 from flask_babel import Babel
+from sdconfig import FALLBACK_LOCALE, SecureDropConfig
 
-from sdconfig import SDConfig
+I18N_CONF = Path(__file__).parent / "i18n.json"
 
 
 class RequestLocaleInfo:
@@ -101,7 +103,7 @@ class RequestLocaleInfo:
         return get_locale_identifier(parse_locale(str(self.locale)), sep="-")
 
 
-def configure_babel(config: SDConfig, app: Flask) -> None:
+def configure_babel(config: SecureDropConfig, app: Flask) -> Babel:
     """
     Set up Flask-Babel according to the SecureDrop configuration.
     """
@@ -116,44 +118,59 @@ def configure_babel(config: SDConfig, app: Flask) -> None:
     # verify that Babel is only using the translations we told it about
     if list(babel.translation_directories) != [translations_directory]:
         raise ValueError(
-            "Babel translation directories ({}) do not match SecureDrop configuration ({})".format(
-                babel.translation_directories, [translations_directory]
-            )
+            f"Babel translation directories ({babel.translation_directories}) do not match "
+            f"SecureDrop configuration ({[translations_directory]})"
         )
 
     # register the function used to determine the locale of a request
     babel.localeselector(lambda: get_locale(config))
+    return babel
 
 
-def validate_locale_configuration(config: SDConfig, app: Flask) -> None:
+def parse_locale_set(codes: List[str]) -> Set[Locale]:
+    return {Locale.parse(code) for code in codes}
+
+
+def validate_locale_configuration(config: SecureDropConfig, babel: Babel) -> Set[Locale]:
     """
-    Ensure that the configured locales are valid and translated.
+    Check that configured locales are available in the filesystem and therefore usable by
+    Babel.  Warn about configured locales that are not usable, unless we're left with
+    no usable default or fallback locale, in which case raise an exception.
     """
-    if config.DEFAULT_LOCALE not in config.SUPPORTED_LOCALES:
-        raise ValueError(
-            'The default locale "{}" is not included in the set of supported locales "{}"'.format(
-                config.DEFAULT_LOCALE, config.SUPPORTED_LOCALES
-            )
+    # These locales are available and loadable from the filesystem.
+    available = set(babel.list_translations())
+    available.add(Locale.parse(FALLBACK_LOCALE))
+
+    # These locales are supported in the current version of securedrop-app-code.
+    with open(I18N_CONF) as i18n_conf_file:
+        i18n_conf = json.load(i18n_conf_file)
+    supported = parse_locale_set(i18n_conf["supported_locales"].keys())
+
+    # These locales were configured via "securedrop-admin sdconfig", meaning
+    # they were present on the Admin Workstation at "securedrop-admin" runtime.
+    configured = parse_locale_set(config.SUPPORTED_LOCALES)
+
+    # The intersection of these sets is the set of locales usable by Babel.
+    usable = available & configured & supported
+
+    missing = configured - usable
+    if missing:
+        babel.app.logger.warning(
+            f"Configured locales {missing} are not in the set of usable locales {usable}"
         )
 
-    translations = app.babel_instance.list_translations()
-    for locale in config.SUPPORTED_LOCALES:
-        if locale == "en_US":
-            continue
+    defaults = parse_locale_set([config.DEFAULT_LOCALE, FALLBACK_LOCALE])
+    if not defaults & usable:
+        raise ValueError(
+            f"None of the default locales {defaults} are in the set of usable locales {usable}"
+        )
 
-        parsed = Locale.parse(locale)
-        if parsed not in translations:
-            raise ValueError(
-                'Configured locale "{}" is not in the set of translated locales "{}"'.format(
-                    parsed, translations
-                )
-            )
+    return usable
 
 
-LOCALES = collections.OrderedDict()  # type: collections.OrderedDict[str, RequestLocaleInfo]
-
-
-def map_locale_display_names(config: SDConfig) -> None:
+def map_locale_display_names(
+    config: SecureDropConfig, usable_locales: Set[Locale]
+) -> OrderedDict[str, RequestLocaleInfo]:
     """
     Create a map of locale identifiers to names for display.
 
@@ -162,29 +179,37 @@ def map_locale_display_names(config: SDConfig) -> None:
     to distinguish them. For languages with more than one translation,
     like Chinese, we do need the additional detail.
     """
-    language_locale_counts = collections.defaultdict(int)  # type: Dict[str, int]
-    for l in sorted(config.SUPPORTED_LOCALES):
-        locale = RequestLocaleInfo(l)
+
+    # Deduplicate before sorting.
+    supported_locales = sorted(list(set(config.SUPPORTED_LOCALES)))
+
+    language_locale_counts: DefaultDict[str, int] = collections.defaultdict(int)
+    for code in supported_locales:
+        locale = RequestLocaleInfo(code)
         language_locale_counts[locale.language] += 1
 
     locale_map = collections.OrderedDict()
-    for l in sorted(config.SUPPORTED_LOCALES):
-        locale = RequestLocaleInfo(l)
+    for code in supported_locales:
+        if Locale.parse(code) not in usable_locales:
+            continue
+
+        locale = RequestLocaleInfo(code)
         if language_locale_counts[locale.language] > 1:
+            # Disambiguate translations for this language.
             locale.use_display_name = True
+
         locale_map[str(locale)] = locale
 
-    global LOCALES
-    LOCALES = locale_map
+    return locale_map
 
 
-def configure(config: SDConfig, app: Flask) -> None:
-    configure_babel(config, app)
-    validate_locale_configuration(config, app)
-    map_locale_display_names(config)
+def configure(config: SecureDropConfig, app: Flask) -> None:
+    babel = configure_babel(config, app)
+    usable_locales = validate_locale_configuration(config, babel)
+    app.config["LOCALES"] = map_locale_display_names(config, usable_locales)
 
 
-def get_locale(config: SDConfig) -> str:
+def get_locale(config: SecureDropConfig) -> str:
     """
     Return the best supported locale for a request.
 
@@ -192,23 +217,25 @@ def get_locale(config: SDConfig) -> str:
     - l request argument or session['locale']
     - browser suggested locale, from the Accept-Languages header
     - config.DEFAULT_LOCALE
+    - config.FALLBACK_LOCALE
     """
-    # Default to any locale set in the session.
-    locale = session.get("locale")
-
-    # A valid locale specified in request.args takes precedence.
+    preferences: List[str] = []
+    if session and session.get("locale"):
+        preferences.append(session["locale"])
     if request.args.get("l"):
-        negotiated = negotiate_locale([request.args["l"]], LOCALES.keys())
-        if negotiated:
-            locale = negotiated
+        preferences.insert(0, request.args["l"])
+    if not preferences:
+        preferences.extend(get_accepted_languages())
+    preferences.append(config.DEFAULT_LOCALE)
+    preferences.append(FALLBACK_LOCALE)
 
-    # If the locale is not in the session or request.args, negotiate
-    # the best supported option from the browser's accepted languages.
-    if not locale:
-        locale = negotiate_locale(get_accepted_languages(), LOCALES.keys())
+    locales = current_app.config["LOCALES"]
+    negotiated = negotiate_locale(preferences, locales.keys())
 
-    # Finally, fall back to the default locale if necessary.
-    return locale or config.DEFAULT_LOCALE
+    if not negotiated:
+        raise ValueError("No usable locale")
+
+    return negotiated
 
 
 def get_accepted_languages() -> List[str]:
@@ -216,9 +243,9 @@ def get_accepted_languages() -> List[str]:
     Convert a request's list of accepted languages into locale identifiers.
     """
     accept_languages = []
-    for l in request.accept_languages.values():
+    for code in request.accept_languages.values():
         try:
-            parsed = Locale.parse(l, "-")
+            parsed = Locale.parse(code, "-")
             accept_languages.append(str(parsed))
 
             # We only have two Chinese translations, simplified
@@ -231,19 +258,17 @@ def get_accepted_languages() -> List[str]:
             # at least be more legible at first contact than the
             # probable default locale of English.
             if parsed.language == "zh" and parsed.script:
-                accept_languages.append(
-                    str(Locale(language=parsed.language, script=parsed.script))
-                )
+                accept_languages.append(str(Locale(language=parsed.language, script=parsed.script)))
         except (ValueError, UnknownLocaleError):
             pass
     return accept_languages
 
 
-def set_locale(config: SDConfig) -> None:
+def set_locale(config: SecureDropConfig) -> None:
     """
     Update locale info in request and session.
     """
     locale = get_locale(config)
-    g.localeinfo = RequestLocaleInfo(locale)
+    g.localeinfo = RequestLocaleInfo(locale)  # pylint: disable=assigning-non-slot
     session["locale"] = locale
-    g.locales = LOCALES
+    g.locales = current_app.config["LOCALES"]  # pylint: disable=assigning-non-slot

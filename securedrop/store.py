@@ -1,35 +1,31 @@
-# -*- coding: utf-8 -*-
 import binascii
 import gzip
 import os
 import re
 import tempfile
+import typing
 import zipfile
-
-from flask import current_app
 from hashlib import sha256
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from werkzeug.utils import secure_filename
-
-from secure_tempfile import SecureTemporaryFile
+from pathlib import Path
+from tempfile import _TemporaryFileWrapper
+from typing import BinaryIO, List, Optional, Type, Union
 
 import rm
+from encryption import EncryptionManager
+from flask import current_app
+from rq.job import Job
+from sdconfig import SecureDropConfig
+from secure_tempfile import SecureTemporaryFile
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from werkzeug.utils import secure_filename
 from worker import create_queue
 
-
-import typing
-
 if typing.TYPE_CHECKING:
-    # flake8 can not understand type annotation yet.
-    # That is why all type annotation relative import
-    # statements has to be marked as noqa.
-    # http://flake8.pycqa.org/en/latest/user/error-codes.html?highlight=f401
-    from typing import List, Type, Union  # noqa: F401
-    from tempfile import _TemporaryFileWrapper  # type: ignore # noqa: F401
-    from io import BufferedIOBase  # noqa: F401
-    from sqlalchemy.orm import Session  # noqa: F401
-    from models import Reply, Submission  # noqa: F401
+    # Break circular import
+    from models import Reply, Submission
+
+_default_storage: Optional["Storage"] = None
 
 
 VALIDATE_FILENAME = re.compile(
@@ -41,7 +37,6 @@ class PathException(Exception):
     """An exception raised by `util.verify` when it encounters a bad path. A path
     can be bad when it is not absolute or not normalized.
     """
-    pass
 
 
 class TooManyFilesException(Exception):
@@ -50,7 +45,6 @@ class TooManyFilesException(Exception):
     This could be due to a very unlikely collision between
     journalist_designations.
     """
-    pass
 
 
 class NoFileFoundException(Exception):
@@ -58,14 +52,12 @@ class NoFileFoundException(Exception):
     not be found for a given submission or reply.
     This is likely due to an admin manually deleting files from the server.
     """
-    pass
 
 
 class NotEncrypted(Exception):
     """An exception raised if a file expected to be encrypted client-side
     is actually plaintext.
     """
-    pass
 
 
 def safe_renames(old: str, new: str) -> None:
@@ -88,24 +80,31 @@ def safe_renames(old: str, new: str) -> None:
 
 
 class Storage:
-
-    def __init__(self, storage_path: str, temp_dir: str, gpg_key: str) -> None:
+    def __init__(self, storage_path: str, temp_dir: str) -> None:
         if not os.path.isabs(storage_path):
-            raise PathException("storage_path {} is not absolute".format(
-                storage_path))
+            raise PathException(f"storage_path {storage_path} is not absolute")
         self.__storage_path = storage_path
 
         if not os.path.isabs(temp_dir):
-            raise PathException("temp_dir {} is not absolute".format(
-                temp_dir))
+            raise PathException(f"temp_dir {temp_dir} is not absolute")
         self.__temp_dir = temp_dir
-
-        self.__gpg_key = gpg_key
 
         # where files and directories are sent to be securely deleted
         self.__shredder_path = os.path.abspath(os.path.join(self.__storage_path, "../shredder"))
-        if not os.path.exists(self.__shredder_path):
-            os.makedirs(self.__shredder_path, mode=0o700)
+        os.makedirs(self.__shredder_path, mode=0o700, exist_ok=True)
+
+        # crash if we don't have a way to securely remove files
+        if not rm.check_secure_delete_capability():
+            raise AssertionError("Secure file deletion is not possible.")
+
+    @classmethod
+    def get_default(cls) -> "Storage":
+        global _default_storage
+        if _default_storage is None:
+            config = SecureDropConfig.get_current()
+            _default_storage = cls(str(config.STORE_DIR), str(config.TEMP_DIR))
+
+        return _default_storage
 
     @property
     def storage_path(self) -> str:
@@ -146,9 +145,9 @@ class Storage:
             if os.path.isfile(p) and VALIDATE_FILENAME(os.path.basename(p)):
                 return True
 
-        raise PathException("Path not valid in store: {}".format(p))
+        raise PathException(f"Path not valid in store: {p}")
 
-    def path(self, filesystem_id: str, filename: str = '') -> str:
+    def path(self, filesystem_id: str, filename: str = "") -> str:
         """
         Returns the path resolved within `self.__storage_path`.
 
@@ -158,16 +157,15 @@ class Storage:
         absolute = os.path.realpath(joined)
         if not self.verify(absolute):
             raise PathException(
-                """Could not resolve ("{}", "{}") to a path within the store.""".format(
-                    filesystem_id, filename
-                )
+                f'Could not resolve ("{filesystem_id}", "{filename}") to a path within '
+                "the store."
             )
         return absolute
 
     def path_without_filesystem_id(self, filename: str) -> str:
         """Get the normalized, absolute file path, within
-           `self.__storage_path` for a filename when the filesystem_id
-           is not known.
+        `self.__storage_path` for a filename when the filesystem_id
+        is not known.
         """
 
         joined_paths = []
@@ -177,55 +175,54 @@ class Storage:
                     joined_paths.append(os.path.join(rootdir, file_))
 
         if len(joined_paths) > 1:
-            raise TooManyFilesException('Found duplicate files!')
+            raise TooManyFilesException("Found duplicate files!")
         elif len(joined_paths) == 0:
-            raise NoFileFoundException('File not found: {}'.format(filename))
+            raise NoFileFoundException(f"File not found: {filename}")
         else:
             absolute = joined_paths[0]
 
         if not self.verify(absolute):
-            raise PathException(
-                """Could not resolve "{}" to a path within the store.""".format(filename)
-            )
+            raise PathException(f"""Could not resolve "{filename}" to a path within the store.""")
         return absolute
 
-    def get_bulk_archive(self,
-                         selected_submissions: 'List',
-                         zip_directory: str = '') -> '_TemporaryFileWrapper':
+    def get_bulk_archive(
+        self, selected_submissions: "List", zip_directory: str = ""
+    ) -> "_TemporaryFileWrapper":
         """Generate a zip file from the selected submissions"""
         zip_file = tempfile.NamedTemporaryFile(
-            prefix='tmp_securedrop_bulk_dl_',
-            dir=self.__temp_dir,
-            delete=False)
-        sources = set([i.source.journalist_designation
-                       for i in selected_submissions])
+            prefix="tmp_securedrop_bulk_dl_", dir=self.__temp_dir, delete=False
+        )
+        sources = {i.source.journalist_designation for i in selected_submissions}
         # The below nested for-loops are there to create a more usable
         # folder structure per #383
         missing_files = False
 
-        with zipfile.ZipFile(zip_file, 'w') as zip:
+        with zipfile.ZipFile(zip_file, "w") as zip:
             for source in sources:
                 fname = ""
-                submissions = [s for s in selected_submissions
-                               if s.source.journalist_designation == source]
+                submissions = [
+                    s for s in selected_submissions if s.source.journalist_designation == source
+                ]
                 for submission in submissions:
                     filename = self.path(submission.source.filesystem_id, submission.filename)
 
                     if os.path.exists(filename):
-                        document_number = submission.filename.split('-')[0]
+                        document_number = submission.filename.split("-")[0]
                         if zip_directory == submission.source.journalist_filename:
                             fname = zip_directory
                         else:
                             fname = os.path.join(zip_directory, source)
-                        zip.write(filename, arcname=os.path.join(
-                            fname,
-                            "%s_%s" % (document_number,
-                                       submission.source.last_updated.date()),
-                            os.path.basename(filename)
-                        ))
+                        zip.write(
+                            filename,
+                            arcname=os.path.join(
+                                fname,
+                                f"{document_number}_{submission.source.last_updated.date()}",
+                                os.path.basename(filename),
+                            ),
+                        )
                     else:
                         missing_files = True
-                        current_app.logger.error("File {} not found".format(filename))
+                        current_app.logger.error(f"File {filename} not found")
 
         if missing_files:
             raise FileNotFoundError
@@ -247,18 +244,14 @@ class Storage:
         shredder directory.
         """
         if not self.verify(path):
-            raise ValueError(
-                """Path is not within the store: "{}" """.format(path)
-            )
+            raise ValueError(f"""Path is not within the store: "{path}" """)
 
         if not os.path.exists(path):
-            raise ValueError(
-                """Path does not exist: "{}" """.format(path)
-            )
+            raise ValueError(f"""Path does not exist: "{path}" """)
 
         relpath = os.path.relpath(path, start=self.storage_path)
         dest = os.path.join(tempfile.mkdtemp(dir=self.__shredder_path), relpath)
-        current_app.logger.info("Moving {} to shredder: {}".format(path, dest))
+        current_app.logger.info(f"Moving {path} to shredder: {dest}")
         safe_renames(path, dest)
 
     def clear_shredder(self) -> None:
@@ -281,37 +274,38 @@ class Storage:
                     # again, shouldn't occur in the store -- will
                     # result in the file data being shredded once for
                     # each link.
-                    current_app.logger.info(
-                        "Deleting link {} to {}".format(
-                            abs_file, os.readlink(abs_file)
-                        )
-                    )
+                    current_app.logger.info(f"Deleting link {abs_file} to {os.readlink(abs_file)}")
                     os.unlink(abs_file)
                     continue
                 if self.shredder_contains(abs_file):
                     targets.append(abs_file)
 
         target_count = len(targets)
-        current_app.logger.info("Files to delete: {}".format(target_count))
+        current_app.logger.info(f"Files to delete: {target_count}")
         for i, t in enumerate(targets, 1):
-            current_app.logger.info("Securely deleting file {}/{}: {}".format(i, target_count, t))
+            current_app.logger.info(f"Securely deleting file {i}/{target_count}: {t}")
             rm.secure_delete(t)
-            current_app.logger.info("Securely deleted file {}/{}: {}".format(i, target_count, t))
+            current_app.logger.info(f"Securely deleted file {i}/{target_count}: {t}")
 
         directories_to_remove = set(directories)
         dir_count = len(directories_to_remove)
         for i, d in enumerate(reversed(sorted(directories_to_remove)), 1):
-            current_app.logger.debug("Removing directory {}/{}: {}".format(i, dir_count, d))
+            current_app.logger.debug(f"Removing directory {i}/{dir_count}: {d}")
             os.rmdir(d)
-            current_app.logger.debug("Removed directory {}/{}: {}".format(i, dir_count, d))
+            current_app.logger.debug(f"Removed directory {i}/{dir_count}: {d}")
 
-    def save_file_submission(self,
-                             filesystem_id: str,
-                             count: int,
-                             journalist_filename: str,
-                             filename: str,
-                             stream: 'BufferedIOBase') -> str:
-        sanitized_filename = secure_filename(filename)
+    def save_file_submission(
+        self,
+        filesystem_id: str,
+        count: int,
+        journalist_filename: str,
+        filename: Optional[str],
+        stream: BinaryIO,
+    ) -> str:
+        if filename is not None:
+            sanitized_filename = secure_filename(filename)
+        else:
+            sanitized_filename = secure_filename("unknown.file")
 
         # We store file submissions in a .gz file for two reasons:
         #
@@ -326,13 +320,10 @@ class Storage:
         # file. Given various usability constraints in GPG and Tails, this
         # is the most user-friendly way we have found to do this.
 
-        encrypted_file_name = "{0}-{1}-doc.gz.gpg".format(
-            count,
-            journalist_filename)
+        encrypted_file_name = f"{count}-{journalist_filename}-doc.gz.gpg"
         encrypted_file_path = self.path(filesystem_id, encrypted_file_name)
-        with SecureTemporaryFile("/tmp") as stf:  # nosec
-            with gzip.GzipFile(filename=sanitized_filename,
-                               mode='wb', fileobj=stf, mtime=0) as gzf:
+        with SecureTemporaryFile("/tmp") as stf:  # noqa: S108
+            with gzip.GzipFile(filename=sanitized_filename, mode="wb", fileobj=stf, mtime=0) as gzf:
                 # Buffer the stream into the gzip file to avoid excessive
                 # memory consumption
                 while True:
@@ -341,53 +332,53 @@ class Storage:
                         break
                     gzf.write(buf)
 
-            current_app.crypto_util.encrypt(
-                stf, [self.__gpg_key], encrypted_file_path)
+            EncryptionManager.get_default().encrypt_source_file(
+                file_in=stf,
+                encrypted_file_path_out=Path(encrypted_file_path),
+            )
 
         return encrypted_file_name
 
-    def save_pre_encrypted_reply(self,
-                                 filesystem_id: str,
-                                 count: int,
-                                 journalist_filename: str,
-                                 content: str) -> str:
-        if '-----BEGIN PGP MESSAGE-----' not in content.split('\n')[0]:
+    def save_pre_encrypted_reply(
+        self, filesystem_id: str, count: int, journalist_filename: str, content: str
+    ) -> str:
+        if "-----BEGIN PGP MESSAGE-----" not in content.split("\n")[0]:
             raise NotEncrypted
 
-        encrypted_file_name = "{0}-{1}-reply.gpg".format(count,
-                                                         journalist_filename)
+        encrypted_file_name = f"{count}-{journalist_filename}-reply.gpg"
         encrypted_file_path = self.path(filesystem_id, encrypted_file_name)
 
-        with open(encrypted_file_path, 'w') as fh:
+        with open(encrypted_file_path, "w") as fh:
             fh.write(content)
 
         return encrypted_file_path
 
-    def save_message_submission(self,
-                                filesystem_id: str,
-                                count: int,
-                                journalist_filename: str,
-                                message: str) -> str:
-        filename = "{0}-{1}-msg.gpg".format(count, journalist_filename)
+    def save_message_submission(
+        self, filesystem_id: str, count: int, journalist_filename: str, message: str
+    ) -> str:
+        filename = f"{count}-{journalist_filename}-msg.gpg"
         msg_loc = self.path(filesystem_id, filename)
-        current_app.crypto_util.encrypt(message, [self.__gpg_key], msg_loc)
+        EncryptionManager.get_default().encrypt_source_message(
+            message_in=message,
+            encrypted_message_path_out=Path(msg_loc),
+        )
         return filename
 
 
-def async_add_checksum_for_file(db_obj: 'Union[Submission, Reply]') -> str:
-    return create_queue().enqueue(
+def async_add_checksum_for_file(db_obj: "Union[Submission, Reply]", storage: Storage) -> Job:
+    config = SecureDropConfig.get_current()
+    return create_queue(config.RQ_WORKER_NAME).enqueue(
         queued_add_checksum_for_file,
         type(db_obj),
         db_obj.id,
-        current_app.storage.path(db_obj.source.filesystem_id, db_obj.filename),
-        current_app.config['SQLALCHEMY_DATABASE_URI'],
+        storage.path(db_obj.source.filesystem_id, db_obj.filename),
+        current_app.config["SQLALCHEMY_DATABASE_URI"],
     )
 
 
-def queued_add_checksum_for_file(db_model: 'Union[Type[Submission], Type[Reply]]',
-                                 model_id: int,
-                                 file_path: str,
-                                 db_uri: str) -> str:
+def queued_add_checksum_for_file(
+    db_model: "Union[Type[Submission], Type[Reply]]", model_id: int, file_path: str, db_uri: str
+) -> str:
     # we have to create our own DB session because there is no app context
     session = sessionmaker(bind=create_engine(db_uri))()
     db_obj = session.query(db_model).filter_by(id=model_id).one()
@@ -396,19 +387,19 @@ def queued_add_checksum_for_file(db_model: 'Union[Type[Submission], Type[Reply]]
     return "success"
 
 
-def add_checksum_for_file(session: 'Session',
-                          db_obj: 'Union[Submission, Reply]',
-                          file_path: str) -> None:
+def add_checksum_for_file(
+    session: "Session", db_obj: "Union[Submission, Reply]", file_path: str
+) -> None:
     hasher = sha256()
-    with open(file_path, 'rb') as f:
+    with open(file_path, "rb") as f:
         while True:
             read_bytes = f.read(4096)
             if not read_bytes:
                 break
             hasher.update(read_bytes)
 
-    digest = binascii.hexlify(hasher.digest()).decode('utf-8')
-    digest_str = u'sha256:' + digest
+    digest = binascii.hexlify(hasher.digest()).decode("utf-8")
+    digest_str = "sha256:" + digest
     db_obj.checksum = digest_str
 
     session.add(db_obj)

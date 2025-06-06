@@ -12,7 +12,7 @@ set -o pipefail
 
 
 # Support overrides for LTS version
-securedrop_platform_suffix="-${1:-focal}"
+securedrop_platform_suffix="-${1:-noble}"
 
 # Respect explicit choice of Vagrant provider if set.
 if [[ -n "${VAGRANT_DEFAULT_PROVIDER:-}" ]] ; then

@@ -5,9 +5,9 @@ Revises: fccf57ceef02
 Create Date: 2018-06-08 15:08:37.718268
 
 """
-from alembic import op
-import sqlalchemy as sa
 
+import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "2d0ce3ee5bdc"
@@ -16,11 +16,11 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     op.add_column("journalists", sa.Column("passphrase_hash", sa.String(length=256), nullable=True))
 
 
-def downgrade():
+def downgrade() -> None:
     # sqlite has no `drop column` command, so we recreate the original table
     # then load it from a temp table
     conn = op.get_bind()
@@ -31,8 +31,8 @@ def downgrade():
         "journalists",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("username", sa.String(length=255), nullable=False),
-        sa.Column("pw_salt", sa.Binary(), nullable=True),
-        sa.Column("pw_hash", sa.Binary(), nullable=True),
+        sa.Column("pw_salt", sa.LargeBinary(), nullable=True),
+        sa.Column("pw_hash", sa.LargeBinary(), nullable=True),
         sa.Column("is_admin", sa.Boolean(), nullable=True),
         sa.Column("otp_secret", sa.String(length=16), nullable=True),
         sa.Column("is_totp", sa.Boolean(), nullable=True),

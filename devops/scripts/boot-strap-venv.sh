@@ -4,6 +4,11 @@
 
 set -eo pipefail
 
+UBUNTU_VERSION="${UBUNTU_VERSION:-noble}"
+
+# https://peps.python.org/pep-0508/#environment-markers
+PYTHON_VERSION="$(python3 -c 'import platform; print(".".join(platform.python_version_tuple()[:2]))')"
+
 get_venv_version() {
     "${1}/bin/python" -c "from __future__ import print_function; import sys; print(sys.version_info[0])"
 }
@@ -17,7 +22,7 @@ venv_instructions() {
 }
 
 function virtualenv_bootstrap() {
-    PYTHON_VERSION=3
+    DEV_CONSTRAINT="securedrop/requirements/${UBUNTU_VERSION}/develop-constraints.txt"
     VIRTUAL_ENV="${VIRTUAL_ENV:-}"  # Just to get around all the "set -u"
     if [ -n "$VIRTUAL_ENV" ]
     then
@@ -48,12 +53,18 @@ function virtualenv_bootstrap() {
 
         if [ ! -d "$VENV" ]
         then
-            p=$(which "python${PYTHON_VERSION}")
-            echo "Creating Python ${PYTHON_VERSION} virtualenv in ${VENV}"
-            virtualenv -p "${p}" "${VENV}"
+            p=$(command -v "python${PYTHON_VERSION}" 2> /dev/null || command -v python3)
+            echo "Creating ${p} virtualenv in ${VENV}"
+            # be flexible in venv creation, e.g. staging has virtualenv while
+            # deb-tests (GHA runner) has python3-venv
+            if command -v virtualenv > /dev/null; then
+                virtualenv -p "${p}" "${VENV}"
+            else
+                "${p}" -m venv "${VENV}"
+            fi
         fi
 
-        "${VENV}/bin/pip" install -q -r "securedrop/requirements/python${PYTHON_VERSION}/develop-requirements.txt"
+        PIP_CONSTRAINT=${DEV_CONSTRAINT} "${VENV}/bin/pip" install -q -r "securedrop/requirements/${UBUNTU_VERSION}/develop-requirements.txt"
 
         . "${VENV}/bin/activate"
    fi

@@ -1,0 +1,51 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR Freedom of the Press Foundation
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: securedrop@freedom.press\n"
+"PO-Revision-Date: 2024-03-29 03:30+0000\n"
+"Last-Translator: Erdoğan Yağız Şahin <erdy@protonmail.ch>\n"
+"Language-Team: Turkish <https://weblate.securedrop.org/projects/securedrop/desktop/tr/>\n"
+"Language: tr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.3.1\n"
+
+msgid "Check for SecureDrop Updates"
+msgstr "SecureDrop Güncellemelerini Kontrol Et"
+
+msgid "Launch Journalist Interface"
+msgstr "Gazeteci Arayüzünü Başlat"
+
+msgid "Launch Source Interface"
+msgstr "Kaynak Arayüzünü Başlat"
+
+msgid "Open File Browser"
+msgstr "Dosya Tarayıcısını Aç"
+
+msgid "Open KeePassXC Password Vault"
+msgstr "KeePassXC Parola Yöneticisini Aç"
+
+msgid "SSH into the App Server"
+msgstr "Uygulama Sunucusuna SSH bağlantısı kur"
+
+msgid "SSH into the Monitor Server"
+msgstr "Gözetim Sunucusuna SSH bağlantısı kur"
+
+#. Name
+msgid "SecureDrop Journalist Interface"
+msgstr "SecureDrop Gazeteci Arayüzü"
+
+#. Name
+msgid "SecureDrop Source Interface"
+msgstr "SecureDrop Kaynak Arayüzü"
+
+#. Icon
+msgid "{{ tails_config_securedrop_dotfiles }}/securedrop_icon.png"
+msgstr "{{ tails_config_securedrop_dotfiles }}/securedrop_icon.png"

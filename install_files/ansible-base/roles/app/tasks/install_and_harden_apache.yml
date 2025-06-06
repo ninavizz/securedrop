@@ -80,18 +80,6 @@
     - apache
     - hardening
 
-  # The default html directory gets created during installation
-  # of the apache package, so this task must run after installing.
-- name: Remove default Apache site directory /var/www/html/.
-  file:
-    state: absent
-    dest: /var/www/html
-  notify:
-    - restart apache2
-  tags:
-    - apache
-    - hardening
-
   # because we no longer call the `journalist interface` the `document interface`
 - name: Remove old config files
   file:

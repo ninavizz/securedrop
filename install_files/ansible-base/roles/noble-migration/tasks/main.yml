@@ -1,0 +1,224 @@
+---
+
+- name: Initialize
+  set_fact:
+    # Keep in sync with upgrade.rs
+    stages:
+      - 'None'
+      - 'MigrationCheck'
+      - 'PendingUpdates'
+      - 'DisableApache2'
+      - 'Backup'
+      - 'BackupIptables'
+      - 'Marker'
+      - 'SuspendOSSEC'
+      - 'ChangeAptSources'
+      - 'AptGetUpdate'
+      - 'AptGetFullUpgrade'
+      - 'AptGetAutoremove'
+      - 'RestoreIptables'
+      - 'ReenableUnattendedUpdates'
+      - 'ReenableOSSEC'
+      - 'Reboot'
+      - 'SwitchUbuntuSources'
+      - 'IntegrityCheck'
+      - 'ReenableApache2'
+      - 'RemoveBackup'
+      - 'Done'
+
+- name: Check host's migration state
+  ansible.builtin.slurp:
+    src: /etc/securedrop-noble-migration-state.json
+  register: migration_json
+
+# Note: the variable finished_state is only for debugging and human-readable output.
+# The finished_state_index is what must be used for logic in `when` blocks.
+
+- name: Extract current state
+  set_fact:
+    # slurp base64-encodes our file
+    finished_state: "{{ (migration_json.content | b64decode | from_json)['finished'] }}"
+
+- name: Extract current state (2)
+  set_fact:
+    finished_state_index: "{{ stages.index(finished_state) }}"
+
+- name: Kick off migration
+  when: finished_state_index|int == 0
+  block:
+    - name: Instruct upgrade to begin
+      ansible.builtin.copy:
+        # It's okay to enable both app and mon here to simplify the logic,
+        # as this only affects the server the file is updated on.
+        content: |
+          {
+            "app": {"enabled": true, "bucket": 5},
+            "mon": {"enabled": true, "bucket": 5}
+          }
+        dest: /usr/share/securedrop/noble-upgrade.json
+
+    # Start the systemd service manually to avoid waiting for the timer to pick it up
+    - name: Start upgrade systemd service
+      ansible.builtin.systemd:
+        name: securedrop-noble-migration-upgrade
+        state: started
+
+    # Wait until we've finished the PendingUpdates stage. It's highly unlikely
+    # we'll ever successfully complete this stage because as soon as the script
+    # reaches finishes that stage, it reboots. Most likely this step will fail
+    # as unreachable, which we ignore and wait_for_connection.
+    - name: Wait for pending updates to be applied
+      ansible.builtin.wait_for:
+        path: /etc/securedrop-noble-migration-state.json
+        search_regex: '"finished":"PendingUpdates"'
+        sleep: 1
+        timeout: 300
+      ignore_unreachable: yes
+      ignore_errors: yes
+
+    - name: Wait for the first reboot
+      ansible.builtin.wait_for_connection:
+        connect_timeout: 20
+        sleep: 5
+        delay: 10
+        timeout: 600
+
+    - name: Recheck host's migration state
+      ansible.builtin.slurp:
+        src: /etc/securedrop-noble-migration-state.json
+      register: migration_json
+
+    - name: Extract current state
+      set_fact:
+        # slurp base64-encodes our file
+        finished_state: "{{ (migration_json.content | b64decode | from_json)['finished'] }}"
+
+    - debug:
+        msg: "The current upgrade state is: {{ finished_state }}"
+
+    - name: Extract current state (2)
+      set_fact:
+        finished_state_index: "{{ stages.index(finished_state) }}"
+    # Note: do not add anything after this line in this block - it will not run, because
+    # the block is in a `when` that we just made false by updating `finished_state_index`.
+
+- name: Phase 2 of migration
+  # After PendingUpdates (index 2) but before Reboot (index 15)
+  when: finished_state_index|int >= 2 and finished_state_index|int < 15
+  block:
+    # Start the systemd service manually to avoid waiting for the timer to pick it up
+    - name: Resume upgrade systemd service
+      ansible.builtin.systemd:
+        name: securedrop-noble-migration-upgrade
+        state: started
+
+    - debug:
+        msg: "The upgrade is in progress; it may take up to 30 minutes."
+
+    # Same as above, this will most likely fail as unreachable when the server
+    # actually reboots.
+    - name: Wait for system upgrade to noble (phase 2)
+      ansible.builtin.wait_for:
+        path: /etc/securedrop-noble-migration-state.json
+        search_regex: '"finished":"Reboot"'
+        sleep: 5
+        # Should finish in less than 30 minutes
+        timeout: 1800
+      ignore_unreachable: yes
+      ignore_errors: yes
+
+    - name: Wait for the second reboot (phase 2)
+      ansible.builtin.wait_for_connection:
+        connect_timeout: 20
+        sleep: 5
+        delay: 10
+        timeout: 600
+
+    - name: Recheck host's migration state
+      ansible.builtin.slurp:
+        src: /etc/securedrop-noble-migration-state.json
+      register: migration_json
+
+    - name: Extract current state
+      set_fact:
+        # slurp base64-encodes our file
+        finished_state: "{{ (migration_json.content | b64decode | from_json)['finished'] }}"
+
+    - debug:
+        msg: "The current upgrade state is: {{ finished_state }}"
+
+    - name: Extract current state (2)
+      set_fact:
+        finished_state_index: "{{ stages.index(finished_state) }}"
+    # Note: do not add anything after this line in this block - it will not run, because
+    # the block is in a `when` that we just made false by updating `finished_state_index`.
+
+- name: Phase 2.5 of migration (for SSH-over-Tor users)
+  # After PendingUpdates (index 2) but before Reboot (index 15)
+  when: enable_ssh_over_tor and finished_state_index|int >= 2 and finished_state_index|int < 15
+  block:
+    # Same as above, this will most likely fail as unreachable when the server
+    # actually reboots.
+    - name: Wait for system upgrade to noble (phase 2.5)
+      ansible.builtin.wait_for:
+        path: /etc/securedrop-noble-migration-state.json
+        search_regex: '"finished":"Reboot"'
+        sleep: 5
+        # Should finish in less than 30 minutes
+        timeout: 1800
+      ignore_unreachable: yes
+      ignore_errors: yes
+
+    - name: Wait for the second reboot (phase 2.5)
+      ansible.builtin.wait_for_connection:
+        connect_timeout: 20
+        sleep: 5
+        delay: 10
+        timeout: 600
+
+    - name: Recheck host's migration state
+      ansible.builtin.slurp:
+        src: /etc/securedrop-noble-migration-state.json
+      register: migration_json
+
+    - name: Extract current state
+      set_fact:
+        # slurp base64-encodes our file
+        finished_state: "{{ (migration_json.content | b64decode | from_json)['finished'] }}"
+
+    - debug:
+        msg: "The current upgrade state is: {{ finished_state }}"
+
+    - name: Extract current state (2)
+      set_fact:
+        finished_state_index: "{{ stages.index(finished_state) }}"
+    # Note: do not add anything after this line in this block - it will not run, because
+    # the block is in a `when` that we just made false by updating `finished_state_index`.
+
+- name: Phase 3 of migration
+  # After Reboot (index 15) but before Done (index 20)
+  when: finished_state_index|int >= 15 and finished_state_index|int < 20
+  block:
+    - name: Re-resume upgrade systemd service
+      ansible.builtin.systemd:
+        name: securedrop-noble-migration-upgrade
+        state: started
+
+    # This final check should actually succeed.
+    - name: Wait for migration to complete
+      ansible.builtin.wait_for:
+        path: /etc/securedrop-noble-migration-state.json
+        search_regex: '"finished":"Done"'
+        sleep: 5
+        timeout: 300
+
+    # Instead of slurping the file again, we can set the state to done
+    # because we just waited for it to reach that point.
+    - name: Extract current state
+      set_fact:
+        finished_state: "Done"
+        finished_state_index: 20
+
+- fail:
+    msg: "Upgrade did not successfully finish; please check the logs and documentation for more details."
+  when: finished_state != "Done"

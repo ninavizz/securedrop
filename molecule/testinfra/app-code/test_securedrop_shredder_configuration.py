@@ -10,31 +10,31 @@ def test_securedrop_shredder_service(host):
     """
     securedrop_test_vars = sdvars
     service_file = "/lib/systemd/system/securedrop_shredder.service"
-    expected_content = "\n".join([
-        "[Unit]",
-        "Description=SecureDrop shredder",
-        "",
-        "[Service]",
-        'Environment=PYTHONPATH="{}:{}"'.format(
-            securedrop_test_vars.securedrop_code, securedrop_test_vars.securedrop_venv_site_packages
-        ),
-        "ExecStart={}/python /var/www/securedrop/scripts/shredder --interval 60".format(
-            securedrop_test_vars.securedrop_venv_bin
-        ),
-        "PrivateDevices=yes",
-        "PrivateTmp=yes",
-        "ProtectSystem=full",
-        "ReadOnlyDirectories=/",
-        "ReadWriteDirectories={}".format(securedrop_test_vars.securedrop_data),
-        "Restart=always",
-        "RestartSec=10s",
-        "UMask=077",
-        "User={}".format(securedrop_test_vars.securedrop_user),
-        "WorkingDirectory={}".format(securedrop_test_vars.securedrop_code),
-        "",
-        "[Install]",
-        "WantedBy=multi-user.target\n",
-    ])
+    expected_content = "\n".join(
+        [
+            "[Unit]",
+            "Description=SecureDrop shredder",
+            "",
+            "[Service]",
+            "Type=exec",
+            f'Environment=PYTHONPATH="{securedrop_test_vars.securedrop_code}:{securedrop_test_vars.securedrop_venv_site_packages}"',
+            f"ExecStart={securedrop_test_vars.securedrop_venv_bin}/python /var/www/securedrop/"
+            "scripts/shredder --interval 60",
+            "PrivateDevices=yes",
+            "PrivateTmp=yes",
+            "ProtectSystem=full",
+            "ReadOnlyDirectories=/",
+            f"ReadWriteDirectories={securedrop_test_vars.securedrop_data}",
+            "Restart=always",
+            "RestartSec=10s",
+            "UMask=077",
+            f"User={securedrop_test_vars.securedrop_user}",
+            f"WorkingDirectory={securedrop_test_vars.securedrop_code}",
+            "",
+            "[Install]",
+            "WantedBy=multi-user.target\n",
+        ]
+    )
 
     f = host.file(service_file)
     assert f.is_file

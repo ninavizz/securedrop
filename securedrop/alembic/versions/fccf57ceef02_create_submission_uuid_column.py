@@ -5,10 +5,11 @@ Revises: 3d91d6948753
 Create Date: 2018-07-12 00:06:20.891213
 
 """
-from alembic import op
-import sqlalchemy as sa
 
 import uuid
+
+import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "fccf57ceef02"
@@ -17,7 +18,7 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     conn = op.get_bind()
     conn.execute("PRAGMA legacy_alter_table=ON")
     # Schema migration
@@ -64,6 +65,6 @@ def upgrade():
     op.drop_table("submissions_tmp")
 
 
-def downgrade():
+def downgrade() -> None:
     with op.batch_alter_table("submissions", schema=None) as batch_op:
         batch_op.drop_column("uuid")

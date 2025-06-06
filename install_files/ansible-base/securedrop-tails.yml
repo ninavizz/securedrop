@@ -1,4 +1,3 @@
-#!/usr/bin/env ansible-playbook
 ---
 # Configures SecureDrop dotfiles persistence on Admin and Journalist
 # Workstations. Should be run after the servers have been installed.
@@ -19,6 +18,7 @@
         msg: >-
           Successfully configured Tor and set up desktop bookmarks for SecureDrop!
           You will see a notification appear on your screen when Tor is ready.
+          Please reboot your Workstation to take advantage of the SecureDrop Menu.
 
           The Journalist Interface's Tor onion URL is: http://{{ journalist_iface.stdout }}
           The Source Interfaces's Tor onion URL is: http://{{ source_iface.stdout }}

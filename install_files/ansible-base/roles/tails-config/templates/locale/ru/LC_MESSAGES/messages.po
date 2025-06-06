@@ -1,0 +1,51 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR Freedom of the Press Foundation
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: securedrop@freedom.press\n"
+"PO-Revision-Date: 2024-06-07 00:06+0000\n"
+"Last-Translator: neverender <audiolunaire@getgoogleoff.me>\n"
+"Language-Team: Russian <https://weblate.securedrop.org/projects/securedrop/desktop/ru/>\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
+"X-Generator: Weblate 5.5.3\n"
+
+msgid "Check for SecureDrop Updates"
+msgstr "Проверить наличие обновлений SecureDrop"
+
+msgid "Launch Journalist Interface"
+msgstr "Запустить интерфейс журналиста"
+
+msgid "Launch Source Interface"
+msgstr "Запустить интерфейс источников"
+
+msgid "Open File Browser"
+msgstr "Открыть браузер файлов"
+
+msgid "Open KeePassXC Password Vault"
+msgstr "Открыть хранилище паролей KeePassXC"
+
+msgid "SSH into the App Server"
+msgstr "SSH подключение на сервер приложений"
+
+msgid "SSH into the Monitor Server"
+msgstr "SSH подключение на сервер мониторинга"
+
+#. Name
+msgid "SecureDrop Journalist Interface"
+msgstr "Интерфейс журналиста SecureDrop"
+
+#. Name
+msgid "SecureDrop Source Interface"
+msgstr "Интерфейс источников SecureDrop"
+
+#. Icon
+msgid "{{ tails_config_securedrop_dotfiles }}/securedrop_icon.png"
+msgstr "{{ tails_config_securedrop_dotfiles }}/securedrop_icon.png"

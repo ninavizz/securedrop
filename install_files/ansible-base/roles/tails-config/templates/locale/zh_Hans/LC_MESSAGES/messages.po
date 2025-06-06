@@ -1,0 +1,40 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR Freedom of the Press Foundation
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: securedrop@freedom.press\nPO-Revision-Date: 2025-02-25 08:30+0000\nLast-Translator: none <bearbeeprunestardust@users.noreply.weblate.securedrop.org>\nLanguage-Team: Chinese (Simplified Han script) <https://weblate.securedrop.org/projects/securedrop/desktop/zh_Hans/>\nLanguage: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.10\n"
+
+msgid "Check for SecureDrop Updates"
+msgstr "检查 SecureDrop 更新"
+
+msgid "Launch Journalist Interface"
+msgstr "启动记者界面"
+
+msgid "Launch Source Interface"
+msgstr "启动信源界面"
+
+msgid "Open File Browser"
+msgstr "打开文件浏览器"
+
+msgid "Open KeePassXC Password Vault"
+msgstr "打开 KeePassXC 密码库"
+
+msgid "SSH into the App Server"
+msgstr "应用服务器安装 SSH"
+
+msgid "SSH into the Monitor Server"
+msgstr "监视服务器安装 SSH"
+
+#. Name
+msgid "SecureDrop Journalist Interface"
+msgstr "SecureDrop 记者界面"
+
+#. Name
+msgid "SecureDrop Source Interface"
+msgstr "SecureDrop 信源界面"
+
+#. Icon
+msgid "{{ tails_config_securedrop_dotfiles }}/securedrop_icon.png"
+msgstr "{{ tails_config_securedrop_dotfiles }}/securedrop_icon.png"

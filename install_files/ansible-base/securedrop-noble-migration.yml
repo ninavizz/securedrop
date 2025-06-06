@@ -1,0 +1,70 @@
+---
+- name: Disable OSSEC notifications
+  hosts: securedrop_monitor_server
+  max_fail_percentage: 0
+  any_errors_fatal: yes
+  environment:
+    LC_ALL: C
+  tasks:
+    - name: Disable OSSEC notifications
+      ansible.builtin.lineinfile:
+        path: /var/ossec/etc/ossec.conf
+        regexp: '<email_alert_level>7</email_alert_level>'
+        line: '<email_alert_level>15</email_alert_level>'
+      register: ossec_config
+
+    - name: Restart OSSEC service
+      ansible.builtin.systemd:
+        name: ossec
+        state: restarted
+      when: ossec_config.changed
+  become: yes
+
+# Upgrade app first, then mon. This is slower but more predictable; we only
+# need to verify a noble app can talk to a focal mon, and not the other way
+# around if the upgrade happens at different speeds.
+# Also it limits the damage if something goes wrong.
+- name: Perform upgrade on application server
+  hosts: securedrop_application_server
+  max_fail_percentage: 0
+  any_errors_fatal: yes
+  environment:
+    LC_ALL: C
+  roles:
+    - role: noble-migration
+      tags: noble-migration
+  become: yes
+
+- name: Perform upgrade on monitor server
+  hosts: securedrop_monitor_server
+  max_fail_percentage: 0
+  any_errors_fatal: yes
+  environment:
+    LC_ALL: C
+  roles:
+    - role: noble-migration
+      tags: noble-migration
+  become: yes
+
+# This is not really necessary since the mon migration will restore the old
+# configuration back, but let's include it for completeness.
+- name: Restore OSSEC notifications
+  hosts: securedrop_monitor_server
+  max_fail_percentage: 0
+  any_errors_fatal: yes
+  environment:
+    LC_ALL: C
+  tasks:
+    - name: Re-enable OSSEC email alerts
+      ansible.builtin.lineinfile:
+        path: /var/ossec/etc/ossec.conf
+        regexp: '<email_alert_level>(.*?)</email_alert_level>'
+        line: '<email_alert_level>7</email_alert_level>'
+      register: ossec_config
+
+    - name: Restart OSSEC service
+      ansible.builtin.systemd:
+        name: ossec
+        state: restarted
+      when: ossec_config.changed
+  become: yes

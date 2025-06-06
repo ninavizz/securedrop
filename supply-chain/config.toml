@@ -1,0 +1,130 @@
+
+# cargo-vet config file
+default-criteria = "safe-to-run"
+
+[cargo-vet]
+version = "0.10"
+
+[imports.bytecode-alliance]
+url = "https://raw.githubusercontent.com/bytecodealliance/wasmtime/main/supply-chain/audits.toml"
+
+[imports.google]
+url = "https://raw.githubusercontent.com/google/supply-chain/main/audits.toml"
+
+[imports.isrg]
+url = "https://raw.githubusercontent.com/divviup/libprio-rs/main/supply-chain/audits.toml"
+
+[imports.mozilla]
+url = "https://raw.githubusercontent.com/mozilla/supply-chain/main/audits.toml"
+
+[imports.securedrop]
+url = "https://raw.githubusercontent.com/freedomofpress/securedrop-supply-chain/main/audits.toml"
+
+[imports.zcash]
+url = "https://raw.githubusercontent.com/zcash/rust-ecosystem/main/supply-chain/audits.toml"
+
+[policy.android-tzdata]
+criteria = []
+notes = "Android-only"
+
+[policy.hermit-abi]
+criteria = []
+notes = "Hermit OS-only"
+
+[policy.iana-time-zone-haiku]
+criteria = []
+notes = "Haiku OS-only"
+
+[policy.js-sys]
+criteria = []
+notes = "WASM-only"
+
+[policy.noble-migration]
+criteria = "safe-to-run"
+
+[policy.redox_syscall]
+criteria = []
+notes = "Redox OS-only"
+
+[policy.redox_users]
+criteria = []
+notes = "Redox OS-only"
+
+[policy.redwood]
+criteria = "safe-to-run"
+
+[policy.wasi]
+criteria = []
+notes = "WASM-only"
+
+[policy.wasm-bindgen]
+criteria = []
+notes = "WASM-only"
+
+[policy.wasm-bindgen-backend]
+criteria = []
+notes = "WASM-only"
+
+[policy.wasm-bindgen-macro]
+criteria = []
+notes = "WASM-only"
+
+[policy.wasm-bindgen-macro-support]
+criteria = []
+notes = "WASM-only"
+
+[policy.wasm-bindgen-shared]
+criteria = []
+notes = "WASM-only"
+
+[policy.winapi]
+criteria = []
+notes = "Windows-only"
+
+[policy.winapi-i686-pc-windows-gnu]
+criteria = []
+notes = "Windows-only"
+
+[policy.winapi-x86_64-pc-windows-gnu]
+criteria = []
+notes = "Windows-only"
+
+[policy.windows-core]
+criteria = []
+notes = "Windows-only"
+
+[policy.windows-sys]
+criteria = []
+notes = "Windows-only"
+
+[policy.windows-targets]
+criteria = []
+notes = "Windows-only"
+
+[policy.windows_aarch64_gnullvm]
+criteria = []
+notes = "Windows-only"
+
+[policy.windows_aarch64_msvc]
+criteria = []
+notes = "Windows-only"
+
+[policy.windows_i686_gnu]
+criteria = []
+notes = "Windows-only"
+
+[policy.windows_i686_msvc]
+criteria = []
+notes = "Windows-only"
+
+[policy.windows_x86_64_gnu]
+criteria = []
+notes = "Windows-only"
+
+[policy.windows_x86_64_gnullvm]
+criteria = []
+notes = "Windows-only"
+
+[policy.windows_x86_64_msvc]
+criteria = []
+notes = "Windows-only"

@@ -1,0 +1,13 @@
+## newer versions of the distribution.
+deb http://archive.ubuntu.com/ubuntu/ noble main
+
+## newer versions of the distribution.
+deb http://archive.ubuntu.com/ubuntu/ noble universe
+
+## Major bug fix updates produced after the final release of the
+## distribution.
+deb http://archive.ubuntu.com/ubuntu/ noble-updates main
+
+### Security fixes for distribution packages
+deb http://security.ubuntu.com/ubuntu noble-security main
+deb http://security.ubuntu.com/ubuntu noble-security universe

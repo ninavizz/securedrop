@@ -1,0 +1,6 @@
+setuptools>=78.1.1;python_version>="3.9"
+setuptools>=70.0.0
+
+# If this needs updating, search this repository for other references to "pip"
+# that may be missed by our tools.
+pip>=25  # Safety 75180

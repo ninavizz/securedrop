@@ -1,18 +1,18 @@
 import os
-
 from base64 import b32encode
 from functools import lru_cache
 from pathlib import Path
-from random import SystemRandom
-from typing import Optional, List
-from typing import TYPE_CHECKING
+from secrets import SystemRandom
+from typing import TYPE_CHECKING, List, Optional
 
+import models
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.kdf import scrypt
+from sdconfig import SecureDropConfig
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-import models
+import redwood
 
 if TYPE_CHECKING:
     from passphrases import DicewarePassphrase
@@ -87,9 +87,11 @@ def create_source_user(
         new_designation = designation_generator.generate_journalist_designation()
 
         # Check to see if it's already used by an existing source
-        existing_source_with_same_designation = db_session.query(
-            models.Source
-        ).filter_by(journalist_designation=new_designation).one_or_none()
+        existing_source_with_same_designation = (
+            db_session.query(models.Source)
+            .filter_by(journalist_designation=new_designation)
+            .one_or_none()
+        )
         if not existing_source_with_same_designation:
             # The designation is not already used - good to go
             valid_designation = new_designation
@@ -99,9 +101,18 @@ def create_source_user(
         # Could not generate a designation that is not already used
         raise SourceDesignationCollisionError()
 
+    # Generate PGP keys
+    public_key, secret_key, fingerprint = redwood.generate_source_key_pair(
+        gpg_secret, filesystem_id
+    )
+
     # Store the source in the DB
     source_db_record = models.Source(
-        filesystem_id=filesystem_id, journalist_designation=valid_designation
+        filesystem_id=filesystem_id,
+        journalist_designation=valid_designation,
+        public_key=public_key,
+        secret_key=secret_key,
+        fingerprint=fingerprint,
     )
     db_session.add(source_db_record)
     try:
@@ -109,7 +120,7 @@ def create_source_user(
     except IntegrityError:
         db_session.rollback()
         raise SourcePassphraseCollisionError(
-            "Passphrase already used by another Source (filesystem_id {})".format(filesystem_id)
+            f"Passphrase already used by another Source (filesystem_id {filesystem_id})"
         )
 
     # Create the source's folder
@@ -142,7 +153,7 @@ class _SourceScryptManager:
         self._backend = default_backend()
 
     # Use @lru_cache to not recompute the same values over and over for the same user
-    @lru_cache
+    @lru_cache  # noqa: B019
     def derive_source_gpg_secret(self, source_passphrase: "DicewarePassphrase") -> str:
         scrypt_for_gpg_secret = scrypt.Scrypt(
             length=64,
@@ -155,7 +166,7 @@ class _SourceScryptManager:
         hashed_passphrase = scrypt_for_gpg_secret.derive(source_passphrase.encode("utf-8"))
         return b32encode(hashed_passphrase).decode("utf-8")
 
-    @lru_cache
+    @lru_cache  # noqa: B019
     def derive_source_filesystem_id(self, source_passphrase: "DicewarePassphrase") -> str:
         scrypt_for_filesystem_id = scrypt.Scrypt(
             length=64,
@@ -170,11 +181,9 @@ class _SourceScryptManager:
 
     @classmethod
     def get_default(cls) -> "_SourceScryptManager":
-        # Late import so _SourceScryptManager can be used without a config.py in the parent folder
-        from sdconfig import config
-
         global _default_scrypt_mgr
         if _default_scrypt_mgr is None:
+            config = SecureDropConfig.get_current()
             _default_scrypt_mgr = cls(
                 salt_for_gpg_secret=config.SCRYPT_GPG_PEPPER.encode("utf-8"),
                 salt_for_filesystem_id=config.SCRYPT_ID_PEPPER.encode("utf-8"),
@@ -189,7 +198,6 @@ _default_designation_generator: Optional["_DesignationGenerator"] = None
 
 
 class _DesignationGenerator:
-
     def __init__(self, nouns: List[str], adjectives: List[str]):
         self._random_generator = SystemRandom()
 
@@ -218,11 +226,10 @@ class _DesignationGenerator:
 
     @classmethod
     def get_default(cls) -> "_DesignationGenerator":
-        # Late import so _SourceScryptManager can be used without a config.py in the parent folder
-        from sdconfig import config
-
         global _default_designation_generator
         if _default_designation_generator is None:
+            config = SecureDropConfig.get_current()
+
             # Parse the nouns and adjectives files from the config
             nouns = Path(config.NOUNS).read_text().strip().splitlines()
             adjectives = Path(config.ADJECTIVES).read_text().strip().splitlines()

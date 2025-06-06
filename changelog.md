@@ -1,20 +1,658 @@
 # Changelog
 
-## 2.2.0~rc1
+## 2.13.0~rc1
 
+
+
+## 2.12.8
+
+* Do fully automated upgrade of 100% of mon servers (#7540)
+
+## 2.12.7
+
+* Do fully automated upgrade of 40% of mon servers (#7536)
+
+## 2.12.6
+
+* Do fully automated upgrade of 20% of mon servers (#7531)
+
+## 2.12.5
+
+* Do fully automated upgrade of 100% of app servers (#7530)
+
+## 2.12.4
+
+* Do fully automated upgrade of 60% of app servers (#7523)
+
+## 2.12.3
+
+### Ubuntu 24.04 (Noble) upgrade
+
+* Do fully automated upgrade of 40% of app servers (#7516)
+* Run migration check first, before disabling unattended-upgrades (#7515)
+
+### Development
+
+* chown packages to host's user after building (#7512)
+
+## 2.12.2
+
+### Ubuntu 24.04 (Noble) upgrade
+
+* Update Noble migration check to prevent migration attempt on Noble systems (#7502)
+* Update Noble migration script to verify state of Ethernet interfaces (#7497)
+* Update OSSEC configuration to suppress erroneous APT messages (#7496)
+* Enable first phase of automated Noble upgrades (#7492)
+
+### Web applications and APIs
+
+* Upgrade `pyo3` from 0.18.0 to 0.24.1 and update `redwood` to use its bound API (#7432)
+* Dependency updates:
+  * `Jinja2` from 3.1.3 to 3.1.6 (#7479)
+
+### Operations
+
+* Update admin tools to trim newlines from inputted GPG fingerprints (#7474)
+
+### Development
+
+* Add version constraint for `setuptools-scm` to 8.1.0 on Focal builds (#7509)
+
+## 2.12.1
+
+Note: this is an Admin Workstation-only release. Servers will not receive an update.
+
+### Ubuntu 24.04 (Noble) upgrade
+
+* Make noble-migration playbook smarter for SSH-over-Tor (#7484)
+* Extend reboot timeout to 600 seconds (#7484)
+
+## 2.12.0
+
+### Ubuntu 24.04 (Noble) upgrade
+
+* Add CI staging support for Noble (#7360)
+* Add the `sdssh` group before using it in ACLs (#7426)
+* Set a fixed machine-id to ensure phased Noble updates are consistent (#7424)
+* Add script to upgrade from Ubuntu 20.04 (Focal) to Noble (#7406)
+* Add support for manual upgrades from Focal to Noble (#7427)
+* Correct end-of-life date for Ubuntu 20.04 (Focal) (#7459, #7465)
+* Remove `/etc/apt/sources.list.d/original.list` (#7462, #7467)
+* Remove `systemd-resolved` and explicitly install `systemd-hwe-hwdb` (#7466,
+  #7472)
+* Ignore RUSTSEC-2025-0014 (#7470, #7471)
+
+### Web applications and APIs
+
+* Update date string formatting to follow ISO8061 standards (#6413)
+* Update `redwood` to used stabilized `File::create_new()` (#7405)
+* Update Rust toolchain to 1.84.1 (#7423, #7437)
+* Add support for disabling previously-supported languages (#7443)
+* Remove Hindi as a supported language (#7446)
+* Add support for disabling previously-supported languages (#7443, #7451)
+* Ignore Safety alerts:
+  * Ignore Safety 73969 in `jinja2` (#7402)
+* Update dependencies:
+* Update Rust `openssl` dependency to  0.10.70 (#7435)
+
+### Operations
+
+* Improve `securedrop-admin` error messaging (#7272)
+* Update `systemd` services using `Type=exec` to use `Type=simple` (#7404)
+* Add a single script to manage Redis authentication changes (#7409)
+* Ensure `/etc/iptables` exists before writing to it (#7417)
+* Fix `systemd` `ConditionPathExists` syntax (#7434)
+* Ignore Safety alerts:
+  * Ignore Safety 74221, 74261 in `ansible-core` (#7402)
+
+### Development
+
+* Update `backport.py` utility script (#7375)
+* Remove unused translator credits file (#7397)
+* Add support for Podman in `make dev-tor` (#7163)
+* Update `make update-python3-requirements` to use a container (#7400)
+* Add Github Actions workflow linting via `zizmor` (#7401)
+* Add `flake8-bugbear` rules to `ruff` config (#7403)
+* Update `testinfra` tests to resolve dpkg lock contention (#7418)
+* Update Tor Browser tests to be parameterized by locale (#7414)
+* Update `testinfra` tests to handle unapplied phased updates (#7420)
+* Update `testinfra` tests to speed up `pam_ecryptfs` check (#7428)
+* Update dependency review documentation to reflect Rust and Python differences (#7436)
+* Add `libvirt-prod-noble` molecule scenario (#7449)
+* Update dependencies:
+  * Update `pip` to 25.0 (#7429)
+
+## 2.11.1
+
+* Modify the `securedrop-noble-migration-check` program to avoid triggering
+  spurious OSSEC alerts (#7394)
+
+## 2.11.0
+
+The main focus for this release was to prepare SecureDrop servers for upgrading
+to Ubuntu 24.04 (Noble) next year. Other maintenance changes are also included.
+
+### Ubuntu 24.04 (Noble) upgrade
+
+* Support building packages on noble (#7273, #7247, #7319)
+* Add a noble migration check script (#7334, #7363, #7369, #7378)
+* Use `Type=exec` instead of `Type=oneshot` for systemd units (#7350)
+* Make Ansible variables distro-agnostic (#7356)
+* Apply `grsec_lock` once only (#7353)
+* Stop setting `vm.heap_stack_gap` and `net.ipv4 sysctl` flags via Ansible (#7324)
+* Use `sdssh` group instead of internal-only `ssh` group for access control (#7317, #7355)
+* Add timed job to clean out old OSSEC diff and state files (#7327)
+* Remove ufw from new and existing installs (#7315, #7377)
+* Update apache config templates to be distro-agnostic (#7301)
+* Install backup script on app server via Debian package (#7331)
+* Ensure `sources.list` is absent on noble (#7342)
+* Overwrite `sources.list.d/ubuntu.sources` on noble (#7307)
+
+### Web applications
+
+* Add a banner in the Journalist Interface, in preparation for the noble migration (#7348)
+* Use `sqlalchemy.LargeBinary` instead of deprecated `Binary` (#7264)
+* Upgrade sequoia-openpgp from 1.21.1 to 1.21.2 (#7248)
+* Import escape from markupsafe, not flask (#7252)
+* Update UI strings based on translator feedback (#7370)
+* Ignore safety alerts:
+  * ignore Safety 73711 in cryptography (#7339)
+  * ignore Safety 73889, 73969 in werkzeug (#7361)
+
+### Operations
+
+* Regenerate Redis password on restoring from server backup (#7328)
+* Replace reboot-flag cron job with a systemd timer (#7337)
+* Remove haveged package, if installed (#7335, 7341)
+* Don't install apt-transport-https transitional package (#7303)
+* Remove unused Ansible `restrict_direct_access_{app,mon}` roles (#7302)
+* Remove unused Ansible `sysctl_flags_ipv6 variables` (#7300)
+* Prompt `sdadmin` for the default SSH username (#7309)
+* Remove unused `load_iptables` script (#7282)
+* Remove unused SSHd config from cloud-init (#7318)
+* Remove stray Ubuntu file `/etc/apt/apt.conf.d/zzzz-temp-installer-unattended-upgrade` if it exists (#7380)
+
+### Development and CI
+
+* Publish versions of packages with debug symbols (#7347, #7365)
+* Preserve screenshots from translation test CI job (#7240)
+* Make `backport.py` more flexible for complex pull requests (#7260)
+* Install xz-utils in diffoscope CI job (#7344)
+* Don't return `True` from `test_swap_disabled` for monitor server, skip test instead (#7320)
+* Run admin CI tests on bookworm (#7212)
+* Use a single pass in ansible to install local packages (#7261)
+* Upgrade tbselenium from 0.8.1 to 0.9.0 (#7274, #7271)
+* Update geckodriver from 0.33.0 to 0.35.0 (#7268)
+* Standardize git message formats in version updater (#7263)
+* Speed up `update-python3-dependencies` Makefile target using uv (#7234)
+* Upgrade ruff, remove black, add ruff formatting fixes (#7233, #7246)
+* Remove unused `devops/scripts/aws-jenkins-venv.sh` (#7238)
+* Ignore safety alerts:
+  * Ignore CVE-2024-8775 in ansible-core (#7269)
+* Update dependencies:
+  * Upgrade cargo-vet from 0.9.0 to 0.10.0 (#7343)
+  * Upgrade Rust toolchain from 1.78.0 to 1.81.0 (#7232)
+
+#### In support of Ubuntu 24.04 (Noble) upgrade
+
+* Support noble dev environment (#7249)
+* Run basic lint CI against Ubuntu noble and Python 3.12 (#7242)
+* Remove tests checking that no apparmor profiles are complaining (#7308)
+* Remove `test_securedrop_application_apt_dependencies` test (#7305)
+* Inspect `grsec_lock` as root in testinfra (#7304)
+* Upgrade paramiko from 2.7.2 to 2.10.6 (#7280, #7321)
+
+## 2.10.1
+
+* Update translations (#7143, #7259)
+
+## 2.10.0
+
+This release contains fixes for issues described in the most recent security audit by 7A Security, see
+our [blog post](https://securedrop.org/news/securedrop-2_10_0-released/) for more details. It also contains other maintenance fixes.
+
+### Security
+
+* Don't allow admins to look up arbitrary users' TOTP secrets via the web (SEC-01-001 WP4)
+* Validate user provided same password back to server (SEC-01-002 WP4)
+* Require POST requests for `/logout` for CSRF protection (SEC-01-003 WP4)
+* Set password for redis access (SEC-01-008 WP3)
+* Set `SameSite=Strict` on all cookies for more CSRF protection
+
+### Web applications
+* Dependency updates:
+  * sequoia-openpgp (Rust crate) from 1.20.0 to 1.21.1 (#7197)
+  * setuptools from 56.0.0 to 70.3.0 for CVE-2024-6345 (#7205, #7214)
+  * openssl (Rust crate) from 0.10.60 to 0.10.66 for RUSTSEC-2024-0357 (#7206)
+
+### Journalist Workstation
+* Dependency updates:
+  * setuptools from 56.0.0 to 70.3.0 for CVE-2024-6345 (#7205, #7214)
+  * Remove d2to1 and pbr (#7205)
+
+### Development
+* Don't point people to the decommissioned SecureDrop forum (#7204)
+* Migrate all CI jobs to GitHub Actions (#7216, #7217, #7218, #7219, #7220, #7222, #7223)
+* Improve staging job by using upstream gcloud-sdk image and enforcing GCE VM lifespan (#7215, #7224)
+* Dependency updates:
+  * certifi from 2023.7.22 to 2024.7.4 for CVE-2024-39689 (#7199)
+  * Remove pytest-catchlog (#7199)
+
+## 2.9.0
+
+### Web applications
+* Added accessibility improvements (#6536)
+* Dependency updates:
+  * (Rust) sequoia-openpgp from 1.17.0 to 1.20.0 (#7178)
+
+### Journalist API
+* Added support for partial content requests for submissions and replies endpoints (#7160, #7189)
+
+### Operations
+* Added opt-in Tor PoW defense for the Source Interface (#7175)
+* Updated SecureDrop signing key with new expiry date of 2027-05-24 (#7167)
+
+### Development
+* Updated rust toolchain to version 1.78.0 (#7147)
+* Added random file generation in loaddata.py (#7161)
+* Fixed loaddata.py date generation bug (#7156)
+* Updated test signing key (#7150)
+* Added persistence for onion addresses created with `make dev-tor` (#7124)
+* Ignored safety alerts 66278, 65212, 65401, 65193, 65510, 65511, 66700, 66777, 66704, 66710, 70612, 71064, 42926, 51385, 53048, 53868, 53869, 54219, 54421, 59473, 60026, 65505, 66667, 71591, 71594, 71595, 71608, 71680, 71681, 71684, 70895 (#7145, #7149, #7157, #7170, #7179, #7190)
+* Added support for development virtualenv in Debian 12 (#7154)
+* Dependency updates:
+  * black from 22.3.0 to 24.3.0 (#7144)
+  * pillow from 10.2.0 to 10.3.0 (#7149)
+
+## 2.8.0
+
+### Web applications
+* Updated strings based on translator feedback (#7057)
+* Improved redwood stream performance and testing (#7070)
+* Updated wordlist to remove potentially confusing or offensive terms (#7024)
+* Dependency changes:
+  * cryptography from 41.0.3 to 41.0.7 (#7086)
+  * jinja2 from 3.0.2 to 3.1.3 (#7107)
+  * is-terminal rust crate from 0.4.9 to 0.4.12 (#7114)
+  * openssl rust crate from 0.10.57 to 0.10.60 (#7083)
+
+### Operations
+* Updated copyright strings to reference 2024 (#7099)
+* Removed obsolete mitigation for CVE-2019-3462 (#7053)
+* Improved logic for installing admin tool apt dependencies in Tails (#7088)
+* Added support for Tails 6 to admin tools (#7116)
+* Updated GUI updater to use wayland QT plugin by default, falling back to xcb (#7134)
+* Dependency changes:
+  * Ansible from 6.7.0 to 8.7.0 (#7116)
+  * cffi from 1.14.5 to 1.16.0 (#7116)
+  * pyyaml from 5.4.1 to 6.0.1 (#7116)
+
+### CI
+* Updated CI to verify that the demo container builds and runs (#7052)
+* Updated GCE CI machine type to c2-standard-8 (#7087)
+* Moved various CI jobs to Github Actions (#6969)
+* Fixed cargo-vet binary caching (#7065)
+* Upgraded to cargo-vet 0.9.0 (#7101)
+* Enabled dependabot for Github Actions (#7102)
+* Fixed broken apt caches in staging-test-with-rebase job (#7110)
+* Dependabot updates (#7105, #7104, #7108)
+
+### Development
+* Updated packaging logic to exclude config.py (#7014)
+* Fixed broken link in contributing.md (#7028)
+* Added option to specify git remote for backport script (#7044)
+* Updated functional tests to run under Selenium 4 (#7100)
+* Updated docker run parameters to only pass -it if a tty is available (#7098)
+* Updated rust toolchain in CI and Dockerfiles to 1.74.1 (#7091)
+* Decreased cargo audit error threshold (#7083)
+* Fixed hot reload functionality in dev environment (#7120)
+* Dependency changes:
+  * MarkupSafe from 2.0.2 to 2.1.2 (#7006)
+  * Selenium from 3.141.0 to 4.16.0 (#7100)
+  * tbselenium from 0.5.2 to 0.8.1 (#7100)
+  * jinja2 from 3.0.2 to 3.1.3 (#7109)
+  * peewee from 3.15.0 to 3.17.1 (#7112)
+  * diffoscope from 236 to 256 (#7125)
+  * pillow from 10.0.1 to 10.2.0 (#7107)
+  * semgrep from 0.98.0 to 1.57.0 (#7107)
+* Updated ignored safety alerts: 61893, 62019, 63066, 63227, 65647 (#7085, #7100, #7122)
+
+## 2.7.0
+
+### Web applications
+* Use Sequoia and redwood instead of gnupg and pretty_bad_protocol for GPG operations (#6891, #6884, #6913, #6912, #6925, #6926, #6949, #6958, #6892, #6948, #6946, #6970, #6975, #6972, #6983, #6981, #6998, #7000, #7026, #7029, #7035, #7023, #7071)
+* Update translation workflow to support continuous updates (#6953, #6954, #6985, #6997, #6984, #7010, #7034)
+* Update French diceware wordlist (#6936)
+* Replace pretty-bad-protocol dependency with vendored version (#6836, #6907)
+* Import Markup and escape from markupsafe (#6964)
+* Update wordlist to remove potentially confusing or offensive terms (#7021)
+* Validate the submission key,disable Journalist and Source Interfaces if a weak key is found (#7059)
+* Dependency changes:
+  * Update cryptography from 41.0.1 to 41.0.3 (#6940)
+  * Upgrade sequioa-openpgpg from 1.16.1 to 1.17.0 (#7041)
+
+### Operations
+
+* Remove Ansible check for installed Tor version on servers (#6894)
+* Miscellaneous demo server fixes (#6935, #6994)
+* Update default Dockerfile application versions:
+  * geckodriver to 0.33.0 (#6957)
+  * Firefox to 115esr, Tor Browser to 13.0 (#7001)
+* Update securedrop-admin tooling to reject weak GPG keys with a SHA-1 signature (#6928)
+* Use systemd timers to check for disconnected submissions and source listings (#7009)
+* Dependency changes:
+  * Update Ansible from 2.9.26 to 6.7.0 (ansible-core version 2.13.7) (#6830)
+
+### CI
+
+* Replace bandit, flake8, pylint, and isort with ruff; added more checks (#6885, #6932, #6961, #6995)
+* Update CI to run all non-staging tests on i18n branches (#6923)
+* Reduce mypy execution time by skipping redwood compilation and parsing stub (#6971)
+* Miscellaneous CI updates (#6844, #6920)
+
+### Development
+
+* Improve printing of apparmor denials in testinfra suite (#6883)
+* Set "ia" as unavailable locale, "eo" as test locale  (#6919)
+* Add script to auto-backport PRs to release branches (#6875)
+* Miscellaneous development updates (#6842, #6865, #6871, #6882)
+* Update build script to record commit details (#7019, #7038)
+* Dependency changes:
+  * Remove boto and boto3 dependencies (#6890)
+  * Remove hypothesis dependency (#6893)
+  * Update certifi from 2022.12.7 to 2023.7.22 (#6900)
+  * Update pillow from 9.3.0 to 10.0.1 (#6959)
+  * Update markupsafe from 2.0.1 to 2.1.2 (#7006)
+* Miscellaneous changes (#7008)
+
+## 2.6.1
+
+### Operations
+
+* Fixed bug preventing Journalist Workstation provisioning. (#6905)
+
+## 2.6.0
+
+### Web applications
+* Don't treat Tor Browser for Android as desktop Tor Browser (#6573)
+* Hash journalist passphrases using the argon2id algorithm (#6655, #6657)
+* Remove use of global i18n variables (#6420, #6681)
+* Explicitly retrieve SDConfig and make it immutable (#5761, #6563)
+* Remove "LOGIN_HARDENING" global and reduce SECUREDROP_ENV usage (#3600, #6585)
+* Officially only support SQLite as the database backend (#6700, #6707)
+* Add `<title>` blocks for better accessibility (#6313, #6738)
+* Set `Cross-Origin-Resource-Policy: same-origin` (#6768)
+* Automatically and regularly remove pending sources (#6488, #6785)
+* Fixed display bug when duplicate locales are specified (#6853)
+* Dependency changes:
+  * Update cryptography from 39.0.1 to 41.0.1 (#6855)
+  * Update mod-wsgi from 4.6.7 to 4.9.4 (#6775)
+  * Update pytz from 2017.3 to 2022.2.1 (#6569, #6571)
+  * Update pycparser from 2.20 to 2.21 (#6618, #6686)
+  * Update redis from 3.5.3 to 4.5.4 (#6783, #6867)
+  * Update requests from 2.26.0 to 2.31.0 (#6821)
+  * Update wheel from 0.33.6 to 0.38.4 (#6680)
+  * Remove passlib (#6631)
+  * Remove pyotp (#5613, #6679)
+
+### Journalist Workstation
+* Add a GNOME shell extension (#6531, #6712, 6847)
+
+### Operations
+* Update SecureDrop release key expiry date to 2024-07-08 (#6803, #6804, #6819)
+* Switch cron jobs to systemd timers (#6705, #6748, #6780)
+* Have unattended-upgrades automatically remove unused dependencies (#6762, #6791)
+* Drop securedrop-grsec metapackage, moved to kernel-builder (#6328, #6553)
+* Disable Ubuntu Pro's ua-timer and esm-cache jobs (#6773, #6781)
+* Cleanup old Python 3.5 references (#6586)
+* Cleanup manual `sys.path` additions (#6589)
+* Reorganize Debian packaging, having debhelper do most of the work and other cleanup (#6544)
+* Reorganize OSSEC packaging to use debhelper and other cleanup (#6754)
+* Use plain container for package building, not molecule (#6706, #6754)
+
+### Development
+* Remove "sh" dependency (#6547, #6562, #6580)
+* Updated development dependencies:
+  * mypy from 0.761 to 1.0.0 (#6578, #6744)
+  * pytest to 7.2.0 and pytest-xdist to 3.0.2 (#6689)
+  * pillow from 9.0.1 to 9.3.0 (#6689)
+  * shellcheck to 0.9.0, using shellcheck-py (#6715, #6719)
+* Test improvements:
+  * Create explicit fixture for rqworker (#6551)
+  * Run flake8 for alembic migrations (#6576, #6590)
+  * Enable yamllint's strict mode (#6575, #6622)
+* Test journalist GUI on Python 3.9 + bullseye for Tails 5 (#6635, #6645, )
+* Use a slimmer container for `make dev` (#6620, #6625)
+* Switch SELinux contexts when running containers (#6666)
+* Add "safe.directory" setting for dev environment on newer Git versions (#6674, #6682)
+* Make developer container compatible with Apple Silicon (#6478, #6675, #6692)
+* Add `make otp` helper to print or copy dev OTP code (#6621, #6673)
+* Configure git hooks when virtualenv is created (#6683)
+* Fix a number of spelling issues across the entire repository (#6670)
+* Have black and isort lint everything, configure via pyproject.toml (#6722)
+* Print SecureDrop Workstation `config.json` when using `make dev-tor` (#6736)
+* Verify all packages except `securedrop-app-code` are reproducible in CI (#6754)
+* Check for accessibility issues during pageslayout tests (#6745)
+* Re-sign test key so it doesn't have SHA-1 signatures (#6797)
+
+## 2.5.2
+
+### Web applications
+- Updated dependencies:
+  - werkzeug from 2.0.2 to 2.2.3, markupsafe from 2.0.1 to 2.1.2, Flask-SQLAlchemy from 2.4.0
+ to 2.5.1 (#6752)
+  - cryptography from 3.4.7 to 39.0.1 (#6746, #6751)
+  - certifi from 2017.7.27.1 to 2022-12.07 (#6708)
+  - flask from 2.0.2 to 2.0.3 (#6624, #6634)
+
+### Development
+- Fixed staging app creation in source.wsgi, added application smoke test in testinfra (#6742)
+- Updated safety ignore list, adding alerts: 51668, 52322, 52495, 52510, 52518 (#6708, #6731)
+- Updated expected file ownership variables in testinfra configuration (#6711)
+
+## 2.5.1
+
+### Security
+
+* Users and permissions: /var/www/securedrop is now root-owned, but world-readable. Python code, including manage.py, is all executed as the www-data user.
+
+## 2.5.0
+
+### Web Applications
+
+* Added unified Redis-based session handling for the Journalist Interface and API (#6403, #6584)
+* Added supported languages list and updated i18n tooling to process all languages available in Weblate (#6557, #6566, #6614)
+* Fixed double character escaping of organisation names in the Source and Journalist Interface (#6550)
+* Removed SASS from build process, added pure CSS for both web applications (#6529)
+* Updated string referencing submissions to use consistent terminology (#6543)
+* Updated application dependencies: mako from 1.07 to 1.2.2 (#6535)
+* Updated applications and utilities to use `secrets` module instead of `random` (#6525)
+* Updated locale widget to use full names for locales with shared languages (#6475)
+* Removed support for runtime asset minification (#6425)
+* Updated wordlists to replace potentially offensive terms (#6442)
+* Fixed string localization error (#6465)
+* Updated installation logic to generate Python bytecode during installation (#6591, #6602)
+* Fixed new password functionality to require admins to authenticate if changing their own password (#6627)
+
+### Operations
+
+* Removed tracking parameters from Gitter badge in project README (#6548)
+* Fixed Ansible error in Tails validation task (#6533)
+* Removed usage of lsb_release in Tails and server code (#6530)
+* Updated descriptions in template KeePassXC database (#6524)
+* Removed old signing key and code referring to it (#6457, #6519)
+* Updated contact information in kernel source offer file (#6521)
+
+### Development
+
+* Updated development dependencies: dparse from 0.5.1 to 0.6.2; ujson from 5.3.0 to 5.5.0 (#6565)
+* Updated developer documentation URLs to point to new site at developers.securedrop.org (#6556)
+* Updated dev Dockerfile to use gpgv for signature verification (#6555,#6564)
+* Refactored functional tests to use fixtures throughout (#6518, #6517, #6516, #6505, #6504, #6503, #6487, #6484, #6482, #6481, #6476, #6383, #6382, #6379, #6365)
+* Fixed miscellaneous typos in code comments (#6549)
+* Removed grsecurity support from dev Dockerfile, misc version updates (#6528)
+* Added black and isort formatting for source code (#6480, #6486)
+
+### CI
+
+* Added static code analysis via semgrep (#6479)
+* Updated pagelayout test to address intermittent CI failure (#6470)
+* Removed an external CI dependency by bundling the Codecov GPG key (#6612, #6626)
+
+## 2.4.2
+
+### Security
+
+* Updated Linux kernel to version 5.15.57, which includes mitigations for the security vulnerability known as “[Retbleed](https://comsec.ethz.ch/research/microarch/retbleed/)” (#6506)
+
+## 2.4.1
+
+### Web Applications
+
+* Bugfix: fixed codename filter bug affecting messages with non-ASCII characters (#6492)
+
+### CI
+
+* Added exclusions for 2 irrelevant safety db entries (#6473, #6477)
+
+## 2.4.0
+
+### Web Applications
+
+* Refactored application CSS and updated Source Interface design (#6322, #6362, #6315, #6419, #6429)
+* Updated code to remove Flask and Jinja2 deprecation warnings (#6245)
+* Simplified templates using jinja2 expression-statement extension (#6378)
+* Updated filesystem_id fields to be non-nullable (#6350)
+* Updated gnupg commands to use direct trust model (#6397)
+* Replaced potentially offensive terms in wordlists (#6402)
+* Gracefully emit errors when configured languages are unavailable (#6406)
+* Fixed broken link to download Tor Browser on Tor2Web interstitial (#6393, #6430)
+* Add locale for Portuguese (Portugal), with the language code `pt_PT` (#6156)
+* Improved 2FA token reuse protection (#6460)
+
+### Journalist API
+
+* Use a custom encoder to consistently format datetime objects (#6260)
+
+### Operations
+
+* Disabled fwupd timers to suppress inactionable OSSEC notifications (#6401)
+* Updated SecureDrop release public key to version with expiry date 2020-07-04 (#6448)
+
+### Development
+
+* Fixed schema comparison tests (#6353)
+* Refactored functional test fixtures and updated tests to use them (#6307, #6361)
+* Updated safety dependency from 1.8.7 to 1.10.3 (#6396)
+* Updated mypy dependency from  0.761 to 0.942 and enabled SQLAlchemy plugin (#6351)
+* Removed remaining support for Xenial in package build logic (#6409)
+* Added support for provisioning demo container and landing page (#6407, #6418, #6421)
+
+### CI
+
+* Removed logic to fetch Tor packages in nightly build (#6349)
+* Replaced codecov Bash uploader with binary uploader (#6416)
+* Updated CircleCI to use Python 3.8 image, GCE to use Debian 11 (bullseye) base image (#6431)
+
+## 2.3.2
+
+* Added Tails 5.0 compatibility updates (#6408, #6424)
+
+## 2.3.1
+
+* Bugfix: disabled GPG trustdb checks to prevent timeouts on operations with large keyrings (#6390)
+* Updated click test dependency from 7.1.2 to 8.1.2 (#6381)
+* Bugfix: fixed locale switcher on Source Interface codename page (#6377)
+
+## 2.3.0
+
+### Web Applications
+
+* Added optional message filtering to allow instances to set a minimum initial message length and block initial messages containing source codenames (#6306, #6340, #6345, #6368)
+* Added "skip to notification" link to allow screen-readers to navigate to flashed messages (#6336)
+* Updated /generate to improve and simplify instructions on use of the codename (#6330)
+* Fixed untranslated string in Read Replies widget (#6321, #6344)
+* Updated Source Interface browser security level widget to reflect current Tor Browser UI (#6320)
+* Added ARIA annotations for forms in Journalist Interface (#6240)
+* Added tor2web detection via URL mangling (#6304)
+* Removed unused bulk delete confirmation functionality (#6261)
+* Added "skip to main content link" Source Interface base template (#6237)
+* Added hidden antispam field to detect some automated submissions (#6302)
+* Updated application to redirect to a warning page on detection of a tor2web proxy (#6300, #6335)
+* Added JavaScript check to detect use of non-torified proxy servers (#6303)
+* Added /robots.txt route and meta tags to disallow bots on the Source Interface (#6299)
+* Fixed text overflow issue in the "Read Replies" widget (#6301)
+* Updated data attributes in the codename widget to be translatable strings (#6288)
+* Added support for future user-agent strings  with a 3-digit Firefox version (#6309)
+
+### Development
+
+* Updated `make shellcheck` to optionally use podman instead of Docker (#6239)
+* Updated `make dev-tor` to set correct v3 address in Source Interface /metadata endpoint (#6308)
+
+## 2.2.1
+
+* Update default grsec kernel version to 5.15.26 (#6325)
+* Update pillow test dependency from 9.0.0 to 9.0.1 (#6305)
+
+## 2.2.0
+
+### Web applications
+
+* Refactor and simplify code for creating a new source (#6087).
+* Timestamps will now be displayed using the language's "long" format (#6144).
+* The "Forgot your codename?" hint will only be shown on the initial login (#6130).
+* Disable caching of GPG passphrases to ensure the correct passphrase must be passed every time (#6174).
+* Set minimum length requirements on HOTP and TOTP secrets (#6191).
+* Improve security-related/defensive HTTP headers used in the source and journalist interfaces (#6187).
+* Remove "Refresh codename" feature because of potential user confusion (#6195).
+* Refactor code related to encryption (#6160).
+* Stop explicitly flushing the database session (#6223).
+* Upgrade to Flask 2.0 and associated refactoring (#6217).
+* Improve accessibility of journalist interface by using semantic HTML5/ARIA markup (#6165).
+* Information corresponding to deleted journalists will now be associated with a reserved "deleted" account internally (#6225).
+
+### Operations
+
+* Update grsecurity-patched Linux Kernel from 5.4.136 to 5.15.18 (#6242).
+* Add support for custom hostnames to `./securedrop-admin verify` (#6153).
+* Remove remnants of v2 onion services related configuration (#6169).
+* Overwrite timestamps on source keys during application start (#6270).
+* Dependency updates:
+  * click from 6.7 to 8.0.3 (#6217)
+  * flask-babel from 011.2 to 2.0.0 (#6217)
+  * flask-wtf from 0.14.2 to 1.0.0 (#6217)
+  * Flask from 1.0.2 to 2.0.2 (#6217)
+  * itsdangerous from 0.24 to 2.0.1 (#6217)
+  * jinja2 from 2.11.3 to 3.0.2 (#6217)
+  * markupsafe from 1.1.1 to 2.0.1 (#6217)
+  * redis from 3.3.6 to 3.5.3 (#6217)
+  * rq from 1.1.0 to 1.10.0 (#6217)
+  * werkzeug from 0.16.0 to 2.0.2 (#6217)
+  * wtforms from 2.1.0 to 3.0.0 (#6190)
+* Install dh-virtualenv from Ubuntu 21.10/Impish (#6206).
+* Upgrade builder to use Rust 1.58.1 (#6234).
+* Don't register trigger on Python for securedrop-app-code package (#6231).
+
+### Development
+
+* Improve robustness of Tor Browser version check in `make dev` (#6166).
+* Remove unsupported Xenial dev Dockerfiles, templates and more. (#6166, #6185).
+* Support running the dev setup using onion services with `make dev-tor` (#6167).
+* Support using Podman for the development environment as an alternative to Docker (#6216).
 
 ## 2.1.0
 
 ### Web applications
 
 * Updated HTML time tags to use valid datetime formatting (#6075)
-* Refactor web applications to consolidate source user creation and session management, and remove dependendencies on the system scrypt module in favour of equivalent functionality from the cryptography package (#5692, #5694, #5695)
+* Refactor web applications to consolidate source user creation and session management, and remove dependencies on the system scrypt module in favour of equivalent functionality from the cryptography package (#5692, #5694, #5695)
 * Updated confirmation message for successful replies in the Journalist Interface (#6102)
 * Refactored Source Interface to improve accessibility, using semantic HTML and ARIA annotations (#5996, #6021, #6041, #6056, #6096)
 * Increased default length of 2FA secrets from 80 to 160 bits (#5958)
 * (Bugfix) Restricted length of source codenames stored in session to fit within standard session cookie (#6066)
 * (Bugfix) Added a uniqueness condition for the web applications’  InstanceConfig (#5974)
-* Removed the Javascript dependency for the user deletion confirmation modal dialog on the Journalist Interface (#5696)
+* Removed the JavaScript dependency for the user deletion confirmation modal dialog on the Journalist Interface (#5696)
 * Updated Source Interface to use TLSv1.3 only when HTTPS is enabled (#5988)
 * (Bugfix) Removed duplicate CSS class attribute from Source Interface index page (#6049)
 
@@ -100,7 +738,7 @@
 * Revised upgrade testing logic (#5960)
 * Added Rust toolchain to the builder image (#5966)
 * Removed VirtualBox support in VM scenarios (#5922)
-* Improved efficienciy of alembic upgrade/downgrade tests (#5935)
+* Improved efficiency of alembic upgrade/downgrade tests (#5935)
 * Updated geckodriver and Firefox ESR versions used in tests to latest versions (#5921)
 * Bugfix: corrected Ansible deprecation warning when building deb packages (#5917)
 * Updated dependencies: pip from 19.3.1 to 21.1.1; pip-tools from 4.5.1 to 6.1.0; setuptools from 46.0.0 to 56.0.0; setuptools-scm from 5.0.2 to 6.0.1; pillow from 8.1.1 to 8.2.0 (#5888)
@@ -148,7 +786,7 @@
 
 * Provide end-of-life messaging and disable source interface after Xenial End-of-life (#5789)
 * Adds safe deletion functionality to the Journalist Interface (#5770, #5827)
-* source\_app.utils.normalizer\_timestamps will no longer create an empty file (#5724)
+* source_app.utils.normalizer_timestamps will no longer create an empty file (#5724)
 
 ### Operations
 
@@ -597,7 +1235,7 @@
 * Added support for asynchronous jobs in dev container (#4392)
 * Updated Qubes staging environment to use Xenial by default (#4344, #4228)
 * Updated dev environment to use Xenial by default (#4213)
-* Fixed Dockerfile apt caching error, fixed error in create\_dev\_data.py (#4353)
+* Fixed Dockerfile apt caching error, fixed error in create_dev_data.py (#4353)
 * Added support for use of VNC during functional tests (#4288, #4324)
 * Added support for staging-specific data to create-dev-data.py (#4298)
 * Removed firefox and other packages from app-test Ansible role (#4277)
@@ -757,7 +1395,7 @@
 * Bugfix: resolve OSSEC GPG key import issue in Ansible (#3928)
 * Updated Ansible to 2.6.8 (#3945)
 * Update grsecurity kernels to 4.4.162 (#3913)
-* Security bugfix: Disable unecessary sshd config options (#3979)
+* Security bugfix: Disable unnecessary sshd config options (#3979)
 * Removes 3.14.x grsecurity kernels (#3913)
 
 ### Developer Workflow
@@ -819,7 +1457,7 @@ https://github.com/freedomofpress/securedrop/milestone/47
 
 * Miscellaneous documentation improvements (#3623, #3624, #3655, #3670, #3717, #3710)
 
-The issues for this release were tracked in the 0.9 milestone on Github:
+The issues for this release were tracked in the 0.9 milestone on GitHub:
 https://github.com/freedomofpress/securedrop/milestone/44
 
 
@@ -858,7 +1496,7 @@ https://github.com/freedomofpress/securedrop/milestone/44
 
 * Miscellaneous documentation improvements (#3404, #3405, #3431, #3435,#3437, #3440, #3457, #3463, #3467, #3468, #3476, #3480)
 
-The issues for this release were tracked in the 0.8 milestone on Github:
+The issues for this release were tracked in the 0.8 milestone on GitHub:
 https://github.com/freedomofpress/securedrop/milestone/43
 
 ## 0.7.0
@@ -904,7 +1542,7 @@ https://github.com/freedomofpress/securedrop/milestone/43
 * Add Release manager guide (#3202)
 * Miscellaneous documentation improvements (#3099, #3147, #3153, #3156, #3168, #3201, #3252, #3265, #3295, #3315, #3359).
 
-The issues for this release were tracked in the 0.7 milestone on Github:
+The issues for this release were tracked in the 0.7 milestone on GitHub:
 https://github.com/freedomofpress/securedrop/milestones/0.7.
 
 ## 0.6
@@ -947,7 +1585,7 @@ https://github.com/freedomofpress/securedrop/milestones/0.7.
 
 * Miscellaneous documentation improvements.
 
-The issues for this release were tracked in the 0.6 milestone on Github:
+The issues for this release were tracked in the 0.6 milestone on GitHub:
 https://github.com/freedomofpress/securedrop/milestones/0.6.
 
 ## 0.5.2
@@ -957,7 +1595,7 @@ https://github.com/freedomofpress/securedrop/milestones/0.6.
 * Bugfix: Dynamically allocate firewall during OSSEC registration (#2748).
 * Bugfix: Add all languages to sdconfig prompt (#2935).
 
-The issues for this release were tracked in the 0.5.2 milestone on Github:
+The issues for this release were tracked in the 0.5.2 milestone on GitHub:
 https://github.com/freedomofpress/securedrop/milestone/41
 
 ## 0.5.1
@@ -990,7 +1628,7 @@ https://github.com/freedomofpress/securedrop/milestone/41
 * Replace Google Authenticator with FreeOTP (#2757).
 * Add recommended landing page content (#2752).
 
-The issues for this release were tracked in the 0.5.1 milestone on Github:
+The issues for this release were tracked in the 0.5.1 milestone on GitHub:
 https://github.com/freedomofpress/securedrop/milestones/0.5.1.
 
 ## 0.5
@@ -1052,7 +1690,7 @@ https://github.com/freedomofpress/securedrop/milestones/0.5.1.
 * Add sample SecureDrop privacy policy to documentation (#2340).
 * Break out "Deployment Best Practices" into discrete docs section (#2339).
 
-The issues for this release were tracked in the 0.5 milestone on Github:
+The issues for this release were tracked in the 0.5 milestone on GitHub:
 https://github.com/freedomofpress/securedrop/milestones/0.5.
 
 ## 0.4.4
@@ -1070,7 +1708,7 @@ are not included here. Those issues have been postponed to a future release.
 
 ## 0.4.3
 
-The issues for this release were tracked in the 0.4.3 milestone on Github:
+The issues for this release were tracked in the 0.4.3 milestone on GitHub:
 https://github.com/freedomofpress/securedrop/milestones/0.4.3.
 
 ### Web Applications
@@ -1136,7 +1774,7 @@ https://github.com/freedomofpress/securedrop/milestones/0.4.3.
 
 * Explicitly enables DAC override capability in Apache AppArmor profile (#2105)
 
-The issues for this release were tracked in the 0.4.2 milestone on Github:
+The issues for this release were tracked in the 0.4.2 milestone on GitHub:
 https://github.com/freedomofpress/securedrop/milestones/0.4.2.
 
 ## 0.4.1
@@ -1144,12 +1782,12 @@ https://github.com/freedomofpress/securedrop/milestones/0.4.2.
 * Fixes a bug in one of the Tails scripts used to set up the Desktop
 icons for the SecureDrop interfaces (#2049)
 
-The issues for this release were tracked in the 0.4.1 milestone on Github:
+The issues for this release were tracked in the 0.4.1 milestone on GitHub:
 https://github.com/freedomofpress/securedrop/milestones/0.4.1.
 
 ## 0.4
 
-The issues for this release were tracked in the 0.4 milestone on Github:
+The issues for this release were tracked in the 0.4 milestone on GitHub:
 https://github.com/freedomofpress/securedrop/milestones/0.4.
 
 This changelog shows major changes below. Please diff the tags to see the full list of changes.
@@ -1207,7 +1845,7 @@ This changelog shows major changes below. Please diff the tags to see the full l
 * Adds passphrase best practices guide (#1136).
 * Adds SecureDrop promotion guide (#1134).
 * Adds Administrator responsibilities guide (#1727).
-* Other minor miscelleanous documentation improvements.
+* Other minor miscellaneous documentation improvements.
 
 ## 0.3.12
 
@@ -1231,7 +1869,7 @@ are updated to display properly using this setting (#1567, #1480, #1522)
 * CSS fixes (#1186)
 * Adds coveragerc
 
-The issues for this release were tracked in the 0.3.11 milestone on Github:
+The issues for this release were tracked in the 0.3.11 milestone on GitHub:
 https://github.com/freedomofpress/securedrop/milestones/0.3.11.
 
 ## 0.3.10
@@ -1246,7 +1884,7 @@ will have their apt keyrings updated via automatic nightly updates.
 Admins must manually update the Release Signing Key on Admin Workstations.
 See documentation on configuring the Admin Workstation.
 
-The issues for this release were tracked in the 0.3.10 milestone on Github:
+The issues for this release were tracked in the 0.3.10 milestone on GitHub:
 https://github.com/freedomofpress/securedrop/milestones/0.3.10.
 
 ## 0.3.9
@@ -1259,7 +1897,7 @@ Point release to fix some minor issues and update our Python dependencies.
 * Update Python dependencies of SD (#1379)
 * Fix a regression in the new install script (#1397)
 
-The issues for this release were tracked in the 0.3.9 milestone on Github:
+The issues for this release were tracked in the 0.3.9 milestone on GitHub:
 https://github.com/freedomofpress/securedrop/milestones/0.3.9.
 
 ## 0.3.8
@@ -1268,7 +1906,7 @@ https://github.com/freedomofpress/securedrop/milestones/0.3.9.
 * Switch to using bento boxes in Vagrantfile for more reproducible test environments
 * Minor fixes to update_version.sh
 
-The issues for this release were tracked in the 0.3.8 milestone on Github:
+The issues for this release were tracked in the 0.3.8 milestone on GitHub:
 https://github.com/freedomofpress/securedrop/milestones/0.3.8
 
 ## 0.3.7
@@ -1293,7 +1931,7 @@ package authentication fails if the corresponding key is expired.
 
 ## 0.3.5
 
-The issues for this release were tracked with the 0.3.5 milestone on Github: https://github.com/freedomofpress/securedrop/milestones/0.3.5
+The issues for this release were tracked with the 0.3.5 milestone on GitHub: https://github.com/freedomofpress/securedrop/milestones/0.3.5
 
 * Use certificate verification instead of fingerprint verification by default for the OSSEC Postfix configuration (#1076)
 * Fix apache2 service failing to start on Digital Ocean (#1078)
@@ -1304,7 +1942,7 @@ The issues for this release were tracked with the 0.3.5 milestone on Github: htt
 
 ## 0.3.4
 
-The issues for this release were tracked with the 0.3.4 milestone on Github: https://github.com/freedomofpress/securedrop/milestones/0.3.4
+The issues for this release were tracked with the 0.3.4 milestone on GitHub: https://github.com/freedomofpress/securedrop/milestones/0.3.4
 
 This release contains fixes for issues described in the most recent security audit by iSec. It also contains some improvements and updates to the documentation, and a fix for Tor hidden service directory permissions that caused new installs to fail.
 
@@ -1314,7 +1952,7 @@ This release contains fixes for issues described in the most recent security aud
 * Remove debugging print statements that could leak sensitive information to the logs for the document interface (iSEC-15FTC-2, #1059)
 * Harden default iptables policies (iSEC-15FTC-3, #1053)
 * Don't check passwords or codenames that exceed a maximum length to prevent DoS via excessive scrypt computation (iSEC-15FTC-6, #1059)
-* Remove unnecessary capabilties from the Apache AppArmor profile (iSEC-15FTC-9, #1058).
+* Remove unnecessary capabilities from the Apache AppArmor profile (iSEC-15FTC-9, #1058).
 * Change postfix hostname to something generic to prevent fingerprinting via OSSEC email headers (iSEC-15FTC-10, #1057)
 
 ### Other changes
@@ -1329,7 +1967,7 @@ This release contains fixes for issues described in the most recent security aud
 
 ## 0.3.3
 
-The issues for this release were tracked with the 0.3.3 milestone on Github:
+The issues for this release were tracked with the 0.3.3 milestone on GitHub:
 https://github.com/freedomofpress/securedrop/milestones/0.3.3.
 
 * Remove unnecessary proxy command from Tails SSH aliases (#933)
@@ -1346,7 +1984,7 @@ https://github.com/freedomofpress/securedrop/milestones/0.3.3.
 
 ## 0.3.2
 
-* Fixes security vulnerabilty (severity=high) in access control on Document Interface (#974)
+* Fixes security vulnerability (severity=high) in access control on Document Interface (#974)
 
 ## 0.3.1
 

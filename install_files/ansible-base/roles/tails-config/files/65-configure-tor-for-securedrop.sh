@@ -4,7 +4,7 @@
 # authenticated onion services to /etc/tor/torrc
 # and reloads Tor
 
-# Run only when the interace is not "lo":
+# Run only when the interface is not "lo":
 if [ "$1" = "lo" ]; then
   exit 0
 fi
@@ -14,4 +14,4 @@ if [ "$2" != "up" ]; then
   exit 0
 fi
 
-/usr/bin/python3 /home/amnesia/Persistent/.securedrop/securedrop_init.py
+QT_QPA_PLATFORM="wayland;xcb" /usr/bin/python3 /home/amnesia/Persistent/.securedrop/securedrop_init.py

@@ -25,7 +25,7 @@ function find_latest_ci_image() {
     #    --filter="family:fpf-securedrop AND name ~ ^ci-nested-virt" \
     #    --sort-by=~Name --limit=1 --format="value(Name)"
     # Return hardcoded image id to prevent newer builds from breaking CI
-    echo "ci-nested-virt-buster-1633365108"
+    echo "ci-nested-virt-bullseye-1732663778"
 }
 
 # Call out to GCE API and start a new instance, designating
@@ -43,9 +43,12 @@ function create_sd_ci_gce_instance() {
           --subnet ci-subnet \
           --boot-disk-type=pd-ssd \
           --machine-type="${GCLOUD_MACHINE_TYPE}" \
-          --metadata "ssh-keys=${SSH_USER_NAME}:$(cat $SSH_PUBKEY)"
+          --metadata "ssh-keys=${SSH_USER_NAME}:$(cat $SSH_PUBKEY)" \
+          --instance-termination-action=DELETE \
+          --max-run-duration=3h
 
       # Give box a few more seconds for SSH to become available
+      echo "Sleeping for 20s to wait for SSH to become available"
       sleep 20
   fi
 }

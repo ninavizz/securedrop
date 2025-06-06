@@ -1,10 +1,11 @@
 ---
 # Testinfra vars file for app-staigng.
 wanted_apache_headers:
-  X-XSS-Protection: "1; mode=block"
   X-Content-Type-Options: nosniff
-  X-Download-Options: noopen
-  Content-Security-Policy: "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self';"
+  Content-Security-Policy: "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; frame-ancestors 'none';"
+  Cross-Origin-Opener-Policy: "same-origin"
+  Cross-Origin-Embedder-Policy: "same-origin"
+  Cross-Origin-Resource-Policy: "same-origin"
 
 securedrop_venv: /opt/venvs/securedrop-app-code
 securedrop_venv_bin: /opt/venvs/securedrop-app-code/bin
@@ -12,6 +13,7 @@ securedrop_venv_site_packages: /opt/venvs/securedrop-app-code/lib/python{}/site-
 securedrop_code: /var/www/securedrop
 securedrop_data: /var/lib/securedrop
 securedrop_user: www-data
+securedrop_code_owner: root
 admin_user: vagrant
 
 app_hostname: app-staging
@@ -29,28 +31,7 @@ app_ip: 10.0.1.2
 
 pip_deps:
   - name: 'Flask'
-    version: '1.0.2'
-
-apparmor_complain: []
-
-apparmor_enforce:
-  focal:
-    - "sbin/dhclient"
-    - "/usr/lib/NetworkManager/nm-dhcp-client.action"
-    - "/usr/lib/connman/scripts/dhclient-script"
-    - "/usr/sbin/tcpdump"
-    - "system_tor"
-    - "/usr/sbin/apache2"
-    - "/usr/sbin/apache2//DEFAULT_URI"
-    - "/usr/sbin/apache2//HANDLING_UNTRUSTED_INPUT"
-    - "/usr/sbin/tor"
-
-app_directories:
-  - /var/www/securedrop
-  - /var/lib/securedrop
-  - /var/lib/securedrop/store
-  - /var/lib/securedrop/keys
-  - /var/lib/securedrop/tmp
+    version: '2.0.3'
 
 tor_services:
   - name: journalistv3
@@ -144,6 +125,42 @@ log_events_without_ossec_alerts:
     level: "0"
     rule_id: "100114"
 
+  # #6866
+  - name: NameError_hasattr_does_not_produce_alert
+    alert: >
+      NameError: name 'hasattr' is not defined
+    level: "0"
+    rule_id: "199996"
+
+  # #7491
+  - name: Update_notifier_download_failed_text_no_alert
+    alert: >
+        Download data for packages that failed at package install time
+    level: "0"
+    rule_id: "199994"
+
+  # #7491
+  - name: apt_news_warning_text_no_alert
+    alert: >
+        Warning: W:Download is performed unsandboxed as root as file
+    level: "0"
+    rule_id: "199995"
+
+  # OSSEC should not alert when "manage.py check-disconnected-{db,fs}-
+  # submissions" has logged that there are no disconnected submissions.
+  - name: test_no_disconnected_db_submissions_produces_alert
+    alert: >
+      ossec: output: 'cat /var/lib/securedrop/disconnected_db_submissions.txt':
+      No problems were found. All submissions' files are present.
+    level: "1"
+    rule_id: "400800"
+  - name: test_disconnected_fs_submissions_produces_alert
+    alert: >
+      ossec: output: 'cat /var/lib/securedrop/disconnected_fs_submissions.txt':
+      No unexpected files were found in the store.
+    level: "1"
+    rule_id: "400801"
+
 # Log events we expect an OSSEC alert to occur for
 log_events_with_ossec_alerts:
   # Check that a denied RWX mmaping would produce an OSSEC alert
@@ -213,7 +230,24 @@ log_events_with_ossec_alerts:
     level: "7"
     rule_id: "400700"
 
+  # OSSEC should alert when "manage.py check-disconnected-{db,fs}-submissions"
+  # has logged that there are disconnected submissions.
+  - name: test_disconnected_db_submissions_produces_alert
+    alert: >
+      ossec: output: 'cat /var/lib/securedrop/disconnected_db_submissions.txt':
+      There are submissions in the database with no corresponding files. Run
+      "manage.py list-disconnected-db-submissions" for details.
+    level: "1"
+    rule_id: "400800"
+  - name: test_disconnected_fs_submissions_produces_alert
+    alert: >
+      ossec: output: 'cat /var/lib/securedrop/disconnected_fs_submissions.txt':
+      There are files in the submission area with no corresponding records in
+      the database. Run "manage.py list-disconnected-fs-submissions" for
+      details.
+    level: "1"
+    rule_id: "400801"
+
 fpf_apt_repo_url: "https://apt-test.freedom.press"
-grsec_version_focal: "5.4.136"
 
 daily_reboot_time: "4"

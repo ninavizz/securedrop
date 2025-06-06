@@ -1,0 +1,36 @@
+#!/bin/bash
+# shellcheck disable=SC2086
+set -euxo pipefail
+
+# Our $UBUNTU_VERSION is not available at runtime.
+source /etc/os-release
+
+# https://peps.python.org/pep-0508/#environment-markers
+PYTHON_VERSION="$(python3 -c 'import platform; print(".".join(platform.python_version_tuple()[:2]))')"
+CONSTRAINTS="requirements/${VERSION_CODENAME}/constraints.txt"
+
+COMMON_ARGS="--constraint ${CONSTRAINTS} --generate-hashes --python-version ${PYTHON_VERSION} --python-platform x86_64-unknown-linux-gnu --custom-compile-command ./securedrop/bin/update-requirements"
+
+cd "$(git rev-parse --show-toplevel)/securedrop"
+
+uv pip compile ${COMMON_ARGS} \
+    --output-file requirements/${VERSION_CODENAME}/develop-requirements.txt \
+    requirements/base-requirements.in \
+    requirements/translation-requirements.in \
+    requirements/develop-requirements.in
+uv pip compile ${COMMON_ARGS} \
+    --output-file requirements/${VERSION_CODENAME}/test-requirements.txt \
+    requirements/base-requirements.in \
+    requirements/test-requirements.in
+uv pip compile ${COMMON_ARGS} \
+    --output-file requirements/${VERSION_CODENAME}/requirements.txt \
+    requirements/base-requirements.in \
+    requirements/requirements.in
+uv pip compile ${COMMON_ARGS} \
+    --output-file requirements/${VERSION_CODENAME}/bootstrap-requirements.txt \
+    requirements/base-requirements.in \
+    requirements/bootstrap-requirements.in
+uv pip compile ${COMMON_ARGS} \
+    --output-file requirements/${VERSION_CODENAME}/translation-requirements.txt \
+    requirements/base-requirements.in \
+    requirements/translation-requirements.in

@@ -1,3 +1,4 @@
+import pytest
 import testutils
 
 test_vars = testutils.securedrop_test_vars
@@ -10,6 +11,9 @@ def test_ip6tables_drop_everything_focal(host):
     due to fully disabling IPv6 functionality at boot-time,
     via boot options.
     """
+    if host.system_info.codename != "focal":
+        # On noble, ip6tables works despite IPv6 being disabled
+        pytest.skip("ip6tables behavior changed post-focal")
     with host.sudo():
         c = host.run("ip6tables -S")
         assert c.rc != 0

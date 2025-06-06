@@ -14,7 +14,9 @@ set -o pipefail
 
 . ./devops/scripts/boot-strap-venv.sh
 
-securedrop_staging_scenario="$(./devops/scripts/select-staging-env "${1}")"
+export PLATFORM="${UBUNTU_VERSION:-noble}"
+
+securedrop_staging_scenario="$(./devops/scripts/select-staging-env "${PLATFORM}")"
 
 if [ -z "$TEST_DATA_FILE" ]
 then

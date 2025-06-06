@@ -5,10 +5,11 @@ Revises: faac8092c123
 Create Date: 2018-07-09 22:39:05.088008
 
 """
-from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.sql import quoted_name
+
 import uuid
+
+import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "3d91d6948753"
@@ -17,7 +18,7 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     conn = op.get_bind()
     conn.execute("PRAGMA legacy_alter_table=ON")
     # Schema migration
@@ -39,7 +40,7 @@ def upgrade():
 
     # Now create new table with unique constraint applied.
     op.create_table(
-        quoted_name("sources", quote=False),
+        "sources",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("uuid", sa.String(length=36), nullable=False),
         sa.Column("filesystem_id", sa.String(length=96), nullable=True),
@@ -67,6 +68,6 @@ def upgrade():
     op.drop_table("sources_tmp")
 
 
-def downgrade():
+def downgrade() -> None:
     with op.batch_alter_table("sources", schema=None) as batch_op:
         batch_op.drop_column("uuid")

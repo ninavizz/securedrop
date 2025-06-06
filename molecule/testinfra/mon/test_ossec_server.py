@@ -1,11 +1,10 @@
 import os
-import pytest
 
+import pytest
 import testutils
 
 securedrop_test_vars = testutils.securedrop_test_vars
 testinfra_hosts = [securedrop_test_vars.monitor_hostname]
-python_version = securedrop_test_vars.python_version
 
 
 def test_ossec_connectivity(host):
@@ -15,8 +14,8 @@ def test_ossec_connectivity(host):
     that list to make sure it's the host we expect.
     """
     desired_output = "{}-{} is available.".format(
-        securedrop_test_vars.app_hostname,
-        os.environ.get('APP_IP', securedrop_test_vars.app_ip))
+        securedrop_test_vars.app_hostname, os.environ.get("APP_IP", securedrop_test_vars.app_ip)
+    )
     with host.sudo():
         c = host.check_output("/var/ossec/bin/list_agents -a")
         assert c == desired_output
@@ -33,10 +32,13 @@ def test_ossec_service_start_style(host):
 
 # Permissions don't match between Ansible and OSSEC deb packages postinst.
 @pytest.mark.xfail
-@pytest.mark.parametrize('keyfile', [
-    '/var/ossec/etc/sslmanager.key',
-    '/var/ossec/etc/sslmanager.cert',
-])
+@pytest.mark.parametrize(
+    "keyfile",
+    [
+        "/var/ossec/etc/sslmanager.key",
+        "/var/ossec/etc/sslmanager.cert",
+    ],
+)
 def test_ossec_keyfiles(host, keyfile):
     """
     Ensure that the OSSEC transport key pair exists. These keys are used
@@ -71,7 +73,7 @@ def test_procmail_log(host):
 
 
 def test_ossec_authd(host):
-    """ Ensure that authd is not running """
+    """Ensure that authd is not running"""
     with host.sudo():
         c = host.run("pgrep ossec-authd")
         assert c.stdout == ""
@@ -79,14 +81,14 @@ def test_ossec_authd(host):
 
 
 def test_hosts_files(host):
-    """ Ensure host files mapping are in place """
-    f = host.file('/etc/hosts')
+    """Ensure host files mapping are in place"""
+    f = host.file("/etc/hosts")
 
-    app_ip = os.environ.get('APP_IP', securedrop_test_vars.app_ip)
+    app_ip = os.environ.get("APP_IP", securedrop_test_vars.app_ip)
     app_host = securedrop_test_vars.app_hostname
 
-    assert f.contains('^127.0.0.1.*localhost')
-    assert f.contains(r'^{}\s*{}$'.format(app_ip, app_host))
+    assert f.contains("^127.0.0.1.*localhost")
+    assert f.contains(rf"^{app_ip}\s*{app_host}$")
 
 
 def test_ossec_log_contains_no_malformed_events(host):
@@ -105,5 +107,5 @@ def test_ossec_log_contains_no_malformed_events(host):
 
 
 def test_regression_hosts(host):
-    """ Regression test to check for duplicate entries. """
+    """Regression test to check for duplicate entries."""
     assert host.check_output("uniq --repeated /etc/hosts") == ""

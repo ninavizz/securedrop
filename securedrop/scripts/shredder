@@ -9,14 +9,11 @@ import logging
 import sys
 import time
 
-sys.path.insert(0, ".")  # noqa: E402
-sys.path.insert(
-    0, "/opt/venvs/securedrop-app-code/lib/python3.5/site-packages"
-)  # noqa: E402
-sys.path.insert(0, "/var/www/securedrop")  # noqa: E402
+sys.path.insert(0, "/var/www/securedrop")
 
 import journalist_app
-from sdconfig import config
+from sdconfig import SecureDropConfig
+from store import Storage
 
 
 def parse_args():
@@ -25,7 +22,10 @@ def parse_args():
         description="Utility for clearing deleted content in the SecureDrop store.",
     )
     parser.add_argument(
-        "-i", "--interval", type=int, help="Keep running every 'interval' seconds.",
+        "-i",
+        "--interval",
+        type=int,
+        help="Keep running every 'interval' seconds.",
     )
 
     return parser.parse_args()
@@ -33,18 +33,16 @@ def parse_args():
 
 def clear_shredder():
     try:
-        app.storage.clear_shredder()
+        Storage.get_default().clear_shredder()
     except Exception as e:
-        logging.info("Error clearing shredder: {}".format(e))
+        logging.info(f"Error clearing shredder: {e}")
 
 
 def main():
     args = parse_args()
-    logging.basicConfig(
-        format="%(asctime)s %(levelname)s %(message)s", level=logging.INFO
-    )
+    logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=logging.INFO)
     if args.interval:
-        logging.info("Clearing shredder every {} seconds.".format(args.interval))
+        logging.info(f"Clearing shredder every {args.interval} seconds.")
         while 1:
             clear_shredder()
             time.sleep(args.interval)
@@ -54,6 +52,7 @@ def main():
 
 
 if __name__ == "__main__":
+    config = SecureDropConfig.get_current()
     app = journalist_app.create_app(config)
     with app.app_context():
         main()

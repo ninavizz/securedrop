@@ -5,7 +5,7 @@
 
 set -e
 set -o pipefail
-TARGET_PLATFORM="${1:-focal}"
+TARGET_PLATFORM="${1:-noble}"
 . ./devops/scripts/boot-strap-venv.sh
 
 virtualenv_bootstrap

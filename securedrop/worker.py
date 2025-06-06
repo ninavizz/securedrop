@@ -1,26 +1,23 @@
 import logging
 import os
-from typing import Optional, List
+from typing import List, Optional
 
 from redis import Redis
-from rq.queue import Queue
-from rq.worker import Worker, WorkerStatus
 from rq.exceptions import InvalidJobOperation, NoSuchJobError
+from rq.queue import Queue
 from rq.registry import StartedJobRegistry
+from rq.worker import Worker, WorkerStatus
+from sdconfig import SecureDropConfig
 
-from sdconfig import config
 
-
-def create_queue(name: Optional[str] = None, timeout: int = 3600) -> Queue:
+def create_queue(name: str, timeout: int = 3600) -> Queue:
     """
     Create an rq ``Queue`` named ``name`` with default timeout ``timeout``.
 
     If ``name`` is omitted, ``config.RQ_WORKER_NAME`` is used.
     """
-    if name is None:
-        name = config.RQ_WORKER_NAME
-    q = Queue(name=name, connection=Redis(), default_timeout=timeout)
-    return q
+    config = SecureDropConfig.get_current()
+    return Queue(name=name, connection=Redis(**config.REDIS_KWARGS), default_timeout=timeout)
 
 
 def rq_workers(queue: Queue = None) -> List[Worker]:
@@ -28,7 +25,8 @@ def rq_workers(queue: Queue = None) -> List[Worker]:
     Returns the list of current rq ``Worker``s.
     """
 
-    return Worker.all(connection=Redis(), queue=queue)
+    config = SecureDropConfig.get_current()
+    return Worker.all(connection=Redis(**config.REDIS_KWARGS), queue=queue)
 
 
 def worker_for_job(job_id: str) -> Optional[Worker]:
@@ -52,7 +50,7 @@ def worker_for_job(job_id: str) -> Optional[Worker]:
     return None
 
 
-def requeue_interrupted_jobs(queue_name: Optional[str] = None) -> None:
+def requeue_interrupted_jobs(queue_name: str) -> None:
     """
     Requeues jobs found in the given queue's started job registry.
 
@@ -77,11 +75,11 @@ def requeue_interrupted_jobs(queue_name: Optional[str] = None) -> None:
     started_job_registry = StartedJobRegistry(queue=queue)
 
     queued_job_ids = queue.get_job_ids()
-    logging.debug("queued jobs: {}".format(queued_job_ids))
+    logging.debug(f"queued jobs: {queued_job_ids}")
     started_job_ids = started_job_registry.get_job_ids()
-    logging.debug("started jobs: {}".format(started_job_ids))
+    logging.debug(f"started jobs: {started_job_ids}")
     job_ids = [j for j in started_job_ids if j not in queued_job_ids]
-    logging.debug("candidate job ids: {}".format(job_ids))
+    logging.debug(f"candidate job ids: {job_ids}")
 
     if not job_ids:
         logging.debug("No interrupted jobs found in started job registry.")
@@ -91,9 +89,7 @@ def requeue_interrupted_jobs(queue_name: Optional[str] = None) -> None:
         try:
             job = started_job_registry.job_class.fetch(job_id, started_job_registry.connection)
         except NoSuchJobError as e:
-            logging.error(
-                "Could not find details for job %s: %s", job_id, e
-            )
+            logging.error("Could not find details for job %s: %s", job_id, e)
             continue
 
         logging.debug(

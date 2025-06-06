@@ -10,14 +10,14 @@ def test_ansible_version(host):
     """
     localhost = host.get_host("local://")
     c = localhost.check_output("ansible --version")
-    assert c.startswith("ansible 2.")
+    assert c.startswith("ansible [core 2.")
 
 
 def test_platform(host):
     """
-    SecureDrop requires Ubuntu 20.04 LTS
+    SecureDrop requires Ubuntu 20.04 (focal) or 24.04 (noble)
     """
     assert host.system_info.type == "linux"
     assert host.system_info.distribution == "ubuntu"
-    assert host.system_info.codename == "focal"
-    assert host.system_info.release == "20.04"
+    version = (host.system_info.codename, host.system_info.release)
+    assert version in {("focal", "20.04"), ("noble", "24.04")}

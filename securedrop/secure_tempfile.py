@@ -1,20 +1,16 @@
-# -*- coding: utf-8 -*-
 import base64
 import os
-import io
 from tempfile import _TemporaryFileWrapper  # type: ignore
-from typing import Optional
-from typing import Union
+from typing import Optional, Union
 
-from pretty_bad_protocol._util import _STREAMLIKE_TYPES
 from cryptography.exceptions import AlreadyFinalized
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.ciphers import Cipher
 from cryptography.hazmat.primitives.ciphers.algorithms import AES
 from cryptography.hazmat.primitives.ciphers.modes import CTR
-from cryptography.hazmat.primitives.ciphers import Cipher
 
 
-class SecureTemporaryFile(_TemporaryFileWrapper, object):
+class SecureTemporaryFile(_TemporaryFileWrapper):
     """Temporary file that provides on-the-fly encryption.
 
     Buffering large submissions in memory as they come in requires too
@@ -33,6 +29,7 @@ class SecureTemporaryFile(_TemporaryFileWrapper, object):
     overwritten), and then it's contents may be read only once (although it may
     be done in chunks) and only after it's been written to.
     """
+
     AES_key_size = 256
     AES_block_size = 128
 
@@ -47,16 +44,15 @@ class SecureTemporaryFile(_TemporaryFileWrapper, object):
 
         Returns: self
         """
-        self.last_action = 'init'
+        self.last_action = "init"
         self.create_key()
 
         data = base64.urlsafe_b64encode(os.urandom(32))
-        self.tmp_file_id = data.decode('utf-8').strip('=')
+        self.tmp_file_id = data.decode("utf-8").strip("=")
 
-        self.filepath = os.path.join(store_dir,
-                                     '{}.aes'.format(self.tmp_file_id))
-        self.file = io.open(self.filepath, 'w+b')
-        super(SecureTemporaryFile, self).__init__(self.file, self.filepath)
+        self.filepath = os.path.join(store_dir, f"{self.tmp_file_id}.aes")
+        self.file = open(self.filepath, "w+b")
+        super().__init__(self.file, self.filepath)
 
     def create_key(self) -> None:
         """Generates a unique, pseudorandom AES key, stored ephemerally in
@@ -78,22 +74,22 @@ class SecureTemporaryFile(_TemporaryFileWrapper, object):
         self.encryptor = self.cipher.encryptor()
         self.decryptor = self.cipher.decryptor()
 
-    def write(self, data: Union[bytes, str]) -> None:
+    def write(self, data: Union[bytes, str]) -> int:
         """Write `data` to the secure temporary file. This method may be
         called any number of times following instance initialization,
         but after calling :meth:`read`, you cannot write to the file
         again.
         """
-        if self.last_action == 'read':
-            raise AssertionError('You cannot write after reading!')
-        self.last_action = 'write'
+        if self.last_action == "read":
+            raise AssertionError("You cannot write after reading!")
+        self.last_action = "write"
 
         if isinstance(data, str):
-            data_as_bytes = data.encode('utf-8')
+            data_as_bytes = data.encode("utf-8")
         else:
             data_as_bytes = data
 
-        self.file.write(self.encryptor.update(data_as_bytes))
+        return self.file.write(self.encryptor.update(data_as_bytes))
 
     def read(self, count: Optional[int] = None) -> bytes:
         """Read `data` from the secure temporary file. This method may
@@ -113,11 +109,11 @@ class SecureTemporaryFile(_TemporaryFileWrapper, object):
             count (int): the number of bytes to try to read from the
                 file from the current position.
         """
-        if self.last_action == 'init':
-            raise AssertionError('You must write before reading!')
-        if self.last_action == 'write':
+        if self.last_action == "init":
+            raise AssertionError("You must write before reading!")
+        if self.last_action == "write":
             self.seek(0, 0)
-            self.last_action = 'read'
+            self.last_action = "read"
 
         if count:
             return self.decryptor.update(self.file.read(count))
@@ -136,10 +132,4 @@ class SecureTemporaryFile(_TemporaryFileWrapper, object):
 
         # Since tempfile._TemporaryFileWrapper.close() does other cleanup,
         # (i.e. deleting the temp file on disk), we need to call it also.
-        super(SecureTemporaryFile, self).close()
-
-
-# python-gnupg will not recognize our SecureTemporaryFile as a stream-like type
-# and will attempt to call encode on it, thinking it's a string-like type. To
-# avoid this we append it the list of stream-like types.
-_STREAMLIKE_TYPES.append(_TemporaryFileWrapper)
+        super().close()

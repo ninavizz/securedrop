@@ -4,16 +4,13 @@ import os
 import sys
 import time
 from argparse import _SubParsersAction
-
-from typing import List
-from typing import Optional
-
-from flask.ctx import AppContext
+from typing import List, Optional
 
 from db import db
-from rm import secure_delete
-from models import Reply, Source, Submission
+from flask.ctx import AppContext
 from management import app_context
+from models import Reply, Source, Submission
+from rm import secure_delete
 
 
 def find_disconnected_db_submissions(path: str) -> List[Submission]:
@@ -23,13 +20,11 @@ def find_disconnected_db_submissions(path: str) -> List[Submission]:
     submissions = db.session.query(Submission).order_by(Submission.id, Submission.filename).all()
 
     files_in_fs = {}
-    for directory, subdirs, files in os.walk(path):
+    for directory, _subdirs, files in os.walk(path):
         for f in files:
             files_in_fs[f] = os.path.abspath(os.path.join(directory, f))
 
-    disconnected_submissions = [s for s in submissions if s.filename not in files_in_fs]
-
-    return disconnected_submissions
+    return [s for s in submissions if s.filename not in files_in_fs]
 
 
 def check_for_disconnected_db_submissions(args: argparse.Namespace) -> None:
@@ -74,7 +69,7 @@ def delete_disconnected_db_submissions(args: argparse.Namespace) -> None:
         if not args.force:
             remove = input("Enter 'y' to delete all submissions missing files: ") == "y"
         if remove:
-            print("Removing submission IDs {}...".format(ids))
+            print(f"Removing submission IDs {ids}...")
             db.session.query(Submission).filter(Submission.id.in_(ids)).delete(
                 synchronize_session="fetch"
             )
@@ -94,7 +89,7 @@ def find_disconnected_fs_submissions(path: str) -> List[str]:
     files_in_db.update({r.filename: True for r in replies})
 
     files_in_fs = {}
-    for directory, subdirs, files in os.walk(path):
+    for directory, _subdirs, files in os.walk(path):
         for f in files:
             files_in_fs[f] = os.path.abspath(os.path.join(directory, f))
 
@@ -104,11 +99,7 @@ def find_disconnected_fs_submissions(path: str) -> List[str]:
             filesize = os.stat(p).st_size
             disconnected_files_and_sizes.append((p, filesize))
 
-    disconnected_files = [
-        file for (file, size) in sorted(disconnected_files_and_sizes, key=lambda t: t[1])
-    ]
-
-    return disconnected_files
+    return [file for (file, size) in sorted(disconnected_files_and_sizes, key=lambda t: t[1])]
 
 
 def check_for_disconnected_fs_submissions(args: argparse.Namespace) -> None:
@@ -155,13 +146,13 @@ def delete_disconnected_fs_submissions(args: argparse.Namespace) -> None:
         for i, f in enumerate(disconnected_files, 1):
             remove = args.force
             if not args.force:
-                remove = input("Enter 'y' to delete {}: ".format(f)) == "y"
+                remove = input(f"Enter 'y' to delete {f}: ") == "y"
             if remove:
                 filesize = os.stat(f).st_size
                 if i > 1:
                     eta = filesize / rate
-                    eta_msg = " (ETA to remove {:d} bytes: {:.0f}s )".format(filesize, eta)
-                print("Securely removing file {}/{} {}{}...".format(i, filecount, f, eta_msg))
+                    eta_msg = f" (ETA to remove {filesize:d} bytes: {eta:.0f}s )"
+                print(f"Securely removing file {i}/{filecount} {f}{eta_msg}...")
                 start = time.time()
                 secure_delete(f)
                 file_elapsed = time.time() - start
@@ -169,12 +160,11 @@ def delete_disconnected_fs_submissions(args: argparse.Namespace) -> None:
                 time_elapsed += file_elapsed
                 rate = bytes_deleted / time_elapsed
                 print(
-                    "elapsed: {:.2f}s rate: {:.1f} MB/s overall rate: {:.1f} MB/s".format(
-                        file_elapsed, filesize / 1048576 / file_elapsed, rate / 1048576
-                    )
+                    f"elapsed: {file_elapsed:.2f}s rate: {filesize / 1048576 / file_elapsed:.1f} "
+                    f"MB/s overall rate: {rate / 1048576:.1f} MB/s"
                 )
             else:
-                print("Not removing {}.".format(f))
+                print(f"Not removing {f}.")
 
 
 def were_there_submissions_today(

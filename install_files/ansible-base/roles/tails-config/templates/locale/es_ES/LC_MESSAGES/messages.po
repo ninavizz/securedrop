@@ -1,0 +1,51 @@
+# Spanish translations for PACKAGE package.
+# Copyright (C) 2017 Freedom of the Press Foundation
+# This file is distributed under the same license as the PACKAGE package.
+# Automatically generated, 2017.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: securedrop@freedom.press\n"
+"PO-Revision-Date: 2024-01-12 20:30+0000\n"
+"Last-Translator: clarailr <clarailr@yahoo.es>\n"
+"Language-Team: Spanish <https://weblate.securedrop.org/projects/securedrop/desktop/es/>\n"
+"Language: es_ES\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.3.1\n"
+
+msgid "Check for SecureDrop Updates"
+msgstr ""
+
+msgid "Launch Journalist Interface"
+msgstr ""
+
+msgid "Launch Source Interface"
+msgstr ""
+
+msgid "Open File Browser"
+msgstr "Abrir Explorador de archivos"
+
+msgid "Open KeePassXC Password Vault"
+msgstr "Abrir Almacén de contraseñas de KeePassXC"
+
+msgid "SSH into the App Server"
+msgstr "SSH al servidor de aplicaciones"
+
+msgid "SSH into the Monitor Server"
+msgstr "SSH al servidor de supervisión"
+
+#. Name
+msgid "SecureDrop Journalist Interface"
+msgstr "Interfaz de periodista de SecureDrop"
+
+#. Name
+msgid "SecureDrop Source Interface"
+msgstr "Interfaz de fuente de SecureDrop"
+
+#. Icon
+msgid "{{ tails_config_securedrop_dotfiles }}/securedrop_icon.png"
+msgstr ""

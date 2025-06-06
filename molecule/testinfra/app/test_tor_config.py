@@ -1,15 +1,18 @@
-import pytest
 import re
 
+import pytest
 import testutils
 
 sdvars = testutils.securedrop_test_vars
 testinfra_hosts = [sdvars.app_hostname]
 
 
-@pytest.mark.parametrize('package', [
-    'tor',
-])
+@pytest.mark.parametrize(
+    "package",
+    [
+        "tor",
+    ],
+)
 def test_tor_packages(host, package):
     """
     Ensure Tor packages are installed. Does not include the Tor keyring
@@ -29,11 +32,14 @@ def test_tor_service_running(host):
     assert s.is_enabled
 
 
-@pytest.mark.parametrize('torrc_option', [
-    'SocksPort 0',
-    'SafeLogging 1',
-    'RunAsDaemon 1',
-])
+@pytest.mark.parametrize(
+    "torrc_option",
+    [
+        "SocksPort 0",
+        "SafeLogging 1",
+        "RunAsDaemon 1",
+    ],
+)
 def test_tor_torrc_options(host, torrc_option):
     """
     Check for required options in the system Tor config file.
@@ -46,7 +52,7 @@ def test_tor_torrc_options(host, torrc_option):
     assert f.is_file
     assert f.user == "debian-tor"
     assert f.mode == 0o644
-    assert f.contains("^{}$".format(torrc_option))
+    assert f.contains(f"^{torrc_option}$")
 
 
 def test_tor_torrc_sandbox(host):
@@ -57,7 +63,7 @@ def test_tor_torrc_sandbox(host):
     before we push it out to servers. See issues #944 and #1969.
     """
     f = host.file("/etc/tor/torrc")
-    # Only `Sandbox 1` will enable, but make sure there are zero occurrances
+    # Only `Sandbox 1` will enable, but make sure there are zero occurrences
     # of "Sandbox", otherwise we may have a regression somewhere.
     assert not f.contains("^.*Sandbox.*$")
 

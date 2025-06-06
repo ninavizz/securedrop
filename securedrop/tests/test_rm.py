@@ -1,10 +1,10 @@
 """
 Test secure deletion utilities in securedrop/rm.py
 """
+
 import os
 
 import pytest
-
 import rm
 
 
@@ -13,7 +13,7 @@ def test_secure_delete_capability(config):
 
     path = os.environ["PATH"]
     try:
-        os.environ["PATH"] = "{}".format(config.TEMP_DIR)
+        os.environ["PATH"] = f"{config.TEMP_DIR}"
         assert rm.check_secure_delete_capability() is False
         fakeshred = os.path.join(config.TEMP_DIR, "shred")
         with open(fakeshred, "w") as f:
@@ -28,7 +28,7 @@ def test_shred(config):
     testfile = "test_shred.txt"
     content = "abc123\n"
 
-    # non-existent target should raise an exception
+    # nonexistent target should raise an exception
     with pytest.raises(EnvironmentError):
         rm.shred(os.path.abspath(os.path.join(config.TEMP_DIR, "nonexistentshredtarget")))
 

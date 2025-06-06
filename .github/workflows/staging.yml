@@ -1,0 +1,30 @@
+name: Staging
+on:
+  push:
+    branches:
+      - 'stg-*'
+      - 'release/*'
+  schedule:
+    - cron: '0 3 * * *'
+
+jobs:
+  staging:
+    strategy:
+      fail-fast: false
+      matrix:
+        ubuntu_version: ["noble"]
+    runs-on: ubuntu-latest
+    env:
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      UBUNTU_VERSION: ${{ matrix.ubuntu_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Run staging tests on GCE
+        run: |
+          make ci-go
+      - name: Teardown (if needed)
+        if: always()
+        run: |
+          make ci-teardown || true

@@ -1,0 +1,8 @@
+[workspace]
+
+members = [
+    "noble-migration",
+    "redwood",
+]
+
+resolver = "2"

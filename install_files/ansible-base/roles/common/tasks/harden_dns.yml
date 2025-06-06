@@ -7,12 +7,24 @@
     - dns
     - hardening
 
-- name: Disable systemd-resolved on Focal
+- name: Disable systemd-resolved (focal)
   systemd:
     name: systemd-resolved
     state: stopped
     enabled: no
-  when: ansible_distribution_release == 'focal'
+  when: ansible_distribution_release == "focal"
   tags:
+    - dns
+    - hardening
+
+- name: Uninstall systemd-resolved (noble)
+  apt:
+    name:
+      - systemd-resolved
+    state: absent
+    purge: yes
+  when: ansible_distribution_release != "focal"
+  tags:
+    - apt
     - dns
     - hardening

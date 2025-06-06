@@ -1,16 +1,14 @@
-# -*- coding: utf-8 -*-
-
 import random
 import uuid
 from typing import Any, Dict
 
 import pytest
+from db import db
+from journalist_app import create_app
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
-from db import db
-from journalist_app import create_app
-from .helpers import random_chars, random_datetime, bool_or_none
+from .helpers import bool_or_none, random_chars, random_datetime
 
 random.seed("ᕕ( ᐛ )ᕗ")
 
@@ -22,7 +20,7 @@ def add_submission(source_id):
         "filename": random_chars(50),
         "size": random.randint(0, 1024 * 1024 * 500),
         "downloaded": bool_or_none(),
-        "checksum": random_chars(255, chars="0123456789abcdef")
+        "checksum": random_chars(255, chars="0123456789abcdef"),
     }
     sql = """
     INSERT INTO submissions (uuid, source_id, filename, size, downloaded, checksum)
@@ -37,8 +35,8 @@ class UpgradeTester:
     """
 
     source_count = 10
-    original_sources = {}  # type: Dict[str, Any]
-    source_submissions = {}  # type: Dict[str, Any]
+    original_sources: Dict[str, Any] = {}
+    source_submissions: Dict[str, Any] = {}
 
     def __init__(self, config):
         self.config = config
@@ -46,7 +44,7 @@ class UpgradeTester:
 
     def load_data(self):
         with self.app.app_context():
-            for i in range(self.source_count):
+            for _i in range(self.source_count):
                 self.add_source()
 
             self.original_sources = {
@@ -54,12 +52,12 @@ class UpgradeTester:
             }
 
             for s in self.original_sources.values():
-                for i in range(random.randint(0, 3)):
+                for _i in range(random.randint(0, 3)):
                     add_submission(s.id)
 
                 self.source_submissions[s.id] = db.engine.execute(
                     text("SELECT * FROM submissions WHERE source_id = :source_id"),
-                    **{"source_id": s.id}
+                    source_id=s.id,
                 ).fetchall()
 
     def add_source(self):
@@ -84,7 +82,6 @@ class UpgradeTester:
 
     def check_upgrade(self):
         with self.app.app_context():
-
             # check that the flagged column is gone
             with pytest.raises(OperationalError, match=".*sources has no column named flagged.*"):
                 self.add_source()
@@ -103,7 +100,7 @@ class UpgradeTester:
 
                 source_submissions = db.engine.execute(
                     text("SELECT * FROM submissions WHERE source_id = :source_id"),
-                    **{"source_id": source.id}
+                    source_id=source.id,
                 ).fetchall()
                 assert source_submissions == self.source_submissions[source.id]
 
@@ -114,8 +111,8 @@ class DowngradeTester:
     """
 
     source_count = 10
-    original_sources = {}  # type: Dict[str, Any]
-    source_submissions = {}  # type: Dict[str, Any]
+    original_sources: Dict[str, Any] = {}
+    source_submissions: Dict[str, Any] = {}
 
     def __init__(self, config):
         self.config = config
@@ -145,7 +142,7 @@ class DowngradeTester:
 
     def load_data(self):
         with self.app.app_context():
-            for i in range(self.source_count):
+            for _i in range(self.source_count):
                 self.add_source()
 
             self.original_sources = {
@@ -153,12 +150,12 @@ class DowngradeTester:
             }
 
             for s in self.original_sources.values():
-                for i in range(random.randint(0, 3)):
+                for _i in range(random.randint(0, 3)):
                     add_submission(s.id)
 
                 self.source_submissions[s.id] = db.engine.execute(
                     text("SELECT * FROM submissions WHERE source_id = :source_id"),
-                    **{"source_id": s.id}
+                    source_id=s.id,
                 ).fetchall()
 
     def check_downgrade(self):
@@ -179,6 +176,6 @@ class DowngradeTester:
 
                 source_submissions = db.engine.execute(
                     text("SELECT * FROM submissions WHERE source_id = :source_id"),
-                    **{"source_id": source.id}
+                    source_id=source.id,
                 ).fetchall()
                 assert source_submissions == self.source_submissions[source.id]

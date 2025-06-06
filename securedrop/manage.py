@@ -1,39 +1,35 @@
 #!/opt/venvs/securedrop-app-code/bin/python
-# -*- coding: utf-8 -*-
 
 import argparse
 import logging
 import os
 import pwd
-import subprocess
 import shutil
 import signal
+import subprocess
 import sys
 import time
 import traceback
 from argparse import _SubParsersAction
-from typing import Optional
+from pathlib import Path
+from typing import List, Optional
 
 from flask.ctx import AppContext
-from typing import List
-
 from passphrases import PassphraseGenerator
 
-sys.path.insert(0, "/var/www/securedrop")  # noqa: E402
+sys.path.insert(0, "/var/www/securedrop")
 
 import qrcode
 from sqlalchemy.orm.exc import NoResultFound
 
-os.environ['SECUREDROP_ENV'] = 'dev'  # noqa
+if not os.environ.get("SECUREDROP_ENV"):
+    os.environ["SECUREDROP_ENV"] = "dev"
+
 
 from db import db
-from models import (
-    FirstOrLastNameError,
-    InvalidUsernameException,
-    Journalist,
-)
-from management import app_context, config
+from management import SecureDropConfig, app_context
 from management.run import run
+from management.sources import remove_pending_sources
 from management.submissions import (
     add_check_db_disconnect_parser,
     add_check_fs_disconnect_parser,
@@ -43,8 +39,9 @@ from management.submissions import (
     add_list_fs_disconnect_parser,
     add_were_there_submissions_today,
 )
+from models import FirstOrLastNameError, InvalidUsernameException, Journalist
 
-logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s')
+logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
 
@@ -54,17 +51,24 @@ def obtain_input(text: str) -> str:
     return input(text)
 
 
-def reset(args: argparse.Namespace, context: Optional[AppContext] = None) -> int:
+def reset(
+    args: argparse.Namespace,
+    alembic_ini_path: Path = Path("alembic.ini"),
+    context: Optional[AppContext] = None,
+) -> int:
     """Clears the SecureDrop development applications' state, restoring them to
     the way they were immediately after running `setup_dev.sh`. This command:
     1. Erases the development sqlite database file.
     2. Regenerates the database.
     3. Erases stored submissions and replies from the store dir.
     """
+    config = SecureDropConfig.get_current()
+
     # Erase the development db file
-    if not hasattr(config, 'DATABASE_FILE'):
-        raise Exception("./manage.py doesn't know how to clear the db "
-                        'if the backend is not sqlite')
+    if not hasattr(config, "DATABASE_FILE"):
+        raise Exception(
+            "./manage.py doesn't know how to clear the db " "if the backend is not sqlite"
+        )
 
     # we need to save some data about the old DB file so we can recreate it
     # with the same state
@@ -83,27 +87,20 @@ def reset(args: argparse.Namespace, context: Optional[AppContext] = None) -> int
 
     # Regenerate the database
     # 1. Create it
-    subprocess.check_call(['sqlite3', config.DATABASE_FILE, '.databases'])
+    subprocess.check_call(["sqlite3", config.DATABASE_FILE, ".databases"])
     # 2. Set permissions on it
     os.chown(config.DATABASE_FILE, uid, gid)
     os.chmod(config.DATABASE_FILE, 0o0640)
 
-    if os.environ.get('SECUREDROP_ENV') == 'dev':
+    if os.environ.get("SECUREDROP_ENV") == "dev":
         # 3. Create the DB from the metadata directly when in 'dev' so
         # developers can test application changes without first writing
         # alembic migration.
         with context or app_context():
             db.create_all()
     else:
-        # We have to override the hardcoded .ini file because during testing
-        # the value in the .ini doesn't exist.
-        ini_dir = os.path.dirname(getattr(config,
-                                          'TEST_ALEMBIC_INI',
-                                          'alembic.ini'))
-
         # 3. Migrate it to 'head'
-        subprocess.check_call('cd {} && alembic upgrade head'.format(ini_dir),
-                              shell=True)  # nosec
+        subprocess.check_call(["alembic", "upgrade", "head"], cwd=alembic_ini_path.parent)
 
     # Clear submission/reply storage
     try:
@@ -131,47 +128,48 @@ def add_journalist(args: argparse.Namespace) -> int:
 
 def _get_username() -> str:
     while True:
-        username = obtain_input('Username: ')
+        username = obtain_input("Username: ")
         try:
             Journalist.check_username_acceptable(username)
         except InvalidUsernameException as e:
-            print('Invalid username: ' + str(e))
+            print("Invalid username: " + str(e))
         else:
             return username
 
 
 def _get_first_name() -> Optional[str]:
     while True:
-        first_name = obtain_input('First name: ')
+        first_name = obtain_input("First name: ")
         if not first_name:
             return None
         try:
             Journalist.check_name_acceptable(first_name)
             return first_name
         except FirstOrLastNameError as e:
-            print('Invalid name: ' + str(e))
+            print("Invalid name: " + str(e))
 
 
 def _get_last_name() -> Optional[str]:
     while True:
-        last_name = obtain_input('Last name: ')
+        last_name = obtain_input("Last name: ")
         if not last_name:
             return None
         try:
             Journalist.check_name_acceptable(last_name)
             return last_name
         except FirstOrLastNameError as e:
-            print('Invalid name: ' + str(e))
+            print("Invalid name: " + str(e))
 
 
 def _get_yubikey_usage() -> bool:
-    '''Function used to allow for test suite mocking'''
+    """Function used to allow for test suite mocking"""
     while True:
-        answer = obtain_input('Will this user be using a YubiKey [HOTP]? '
-                              '(y/N): ').lower().strip()
-        if answer in ('y', 'yes'):
+        answer = (
+            obtain_input("Will this user be using a YubiKey [HOTP]? " "(y/N): ").lower().strip()
+        )
+        if answer in ("y", "yes"):
             return True
-        elif answer in ('', 'n', 'no'):
+        elif answer in ("", "n", "no"):
             return False
         else:
             print('Invalid answer. Please type "y" or "n"')
@@ -185,73 +183,75 @@ def _add_user(is_admin: bool = False, context: Optional[AppContext] = None) -> i
 
         print("Note: Passwords are now autogenerated.")
         password = PassphraseGenerator.get_default().generate_passphrase()
-        print("This user's password is: {}".format(password))
+        print(f"This user's password is: {password}")
 
         is_hotp = _get_yubikey_usage()
         otp_secret = None
         if is_hotp:
             while True:
                 otp_secret = obtain_input(
-                    "Please configure this user's YubiKey and enter the "
-                    "secret: ")
+                    "Please configure this user's YubiKey and enter the " "secret: "
+                )
                 if otp_secret:
                     tmp_str = otp_secret.replace(" ", "")
                     if len(tmp_str) != 40:
-                        print("The length of the secret is not correct. "
-                              "Expected 40 characters, but received {0}. "
-                              "Try again.".format(len(tmp_str)))
+                        print(
+                            "The length of the secret is not correct. "
+                            f"Expected 40 characters, but received {len(tmp_str)}. "
+                            "Try again."
+                        )
                         continue
                 if otp_secret:
                     break
 
         try:
-            user = Journalist(username=username,
-                              first_name=first_name,
-                              last_name=last_name,
-                              password=password,
-                              is_admin=is_admin,
-                              otp_secret=otp_secret)
+            user = Journalist(
+                username=username,
+                first_name=first_name,
+                last_name=last_name,
+                password=password,
+                is_admin=is_admin,
+                otp_secret=otp_secret,
+            )
             db.session.add(user)
             db.session.commit()
         except Exception as exc:
             db.session.rollback()
             if "UNIQUE constraint failed: journalists.username" in str(exc):
-                print('ERROR: That username is already taken!')
+                print("ERROR: That username is already taken!")
             else:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
-                print(repr(traceback.format_exception(exc_type, exc_value,
-                                                      exc_traceback)))
+                print(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
             return 1
         else:
-            print('User "{}" successfully added'.format(username))
+            print(f'User "{username}" successfully added')
             if not otp_secret:
                 # Print the QR code for FreeOTP
-                print('\nScan the QR code below with FreeOTP:\n')
-                uri = user.totp.provisioning_uri(username,
-                                                 issuer_name='SecureDrop')
+                print("\nScan the QR code below with FreeOTP:\n")
+                uri = user.totp.get_provisioning_uri(username)
                 qr = qrcode.QRCode()
                 qr.add_data(uri)
                 qr.print_ascii(tty=sys.stdout.isatty())
-                print('\nIf the barcode does not render correctly, try '
-                      "changing your terminal's font (Monospace for Linux, "
-                      'Menlo for OS X). If you are using iTerm on Mac OS X, '
-                      'you will need to change the "Non-ASCII Font", which '
-                      "is your profile\'s Text settings.\n\nCan't scan the "
-                      'barcode? Enter following shared secret manually:'
-                      '\n{}\n'.format(user.formatted_otp_secret))
+                print(
+                    "\nIf the barcode does not render correctly, try "
+                    "changing your terminal's font (Monospace for Linux, "
+                    "Menlo for OS X). If you are using iTerm on Mac OS X, "
+                    'you will need to change the "Non-ASCII Font", which '
+                    "is your profile's Text settings.\n\nCan't scan the "
+                    "barcode? Enter following shared secret manually:"
+                    f"\n{user.formatted_otp_secret}\n"
+                )
         return 0
 
 
 def _get_username_to_delete() -> str:
-    return obtain_input('Username to delete: ')
+    return obtain_input("Username to delete: ")
 
 
 def _get_delete_confirmation(username: str) -> bool:
-    confirmation = obtain_input('Are you sure you want to delete user '
-                                '"{}" (y/n)?'.format(username))
-    if confirmation.lower() != 'y':
-        print('Confirmation not received: user "{}" was NOT '
-              'deleted'.format(username))
+    confirmation = obtain_input("Are you sure you want to delete user " f'"{username}" (y/n)?')
+    if confirmation.lower() != "y":
+        print(f'Confirmation not received: user "{username}" was NOT ' "deleted")
         return False
     return True
 
@@ -263,7 +263,7 @@ def delete_user(args: argparse.Namespace, context: Optional[AppContext] = None) 
         try:
             selected_user = Journalist.query.filter_by(username=username).one()
         except NoResultFound:
-            print('ERROR: That user was not found!')
+            print("ERROR: That user was not found!")
             return 0
 
         # Confirm deletion if user is found
@@ -286,14 +286,14 @@ def delete_user(args: argparse.Namespace, context: Optional[AppContext] = None) 
             else:
                 raise e
 
-        print('User "{}" successfully deleted'.format(username))
+        print(f'User "{username}" successfully deleted')
     return 0
 
 
 def clean_tmp(args: argparse.Namespace) -> int:
-    """Cleanup the SecureDrop temp directory. """
+    """Cleanup the SecureDrop temp directory."""
     if not os.path.exists(args.directory):
-        log.debug('{} does not exist, do nothing'.format(args.directory))
+        log.debug(f"{args.directory} does not exist, do nothing")
         return 0
 
     def listdir_fullpath(d: str) -> List[str]:
@@ -303,50 +303,67 @@ def clean_tmp(args: argparse.Namespace) -> int:
     for path in listdir_fullpath(args.directory):
         if time.time() - os.stat(path).st_mtime > too_old:
             os.remove(path)
-            log.debug('{} removed'.format(path))
+            log.debug(f"{path} removed")
         else:
-            log.debug('{} modified less than {} days ago'.format(
-                path, args.days))
+            log.debug(f"{path} modified less than {args.days} days ago")
 
     return 0
 
 
 def init_db(args: argparse.Namespace) -> None:
+    config = SecureDropConfig.get_current()
     user = pwd.getpwnam(args.user)
-    subprocess.check_call(['sqlite3', config.DATABASE_FILE, '.databases'])
+    subprocess.check_call(["sqlite3", config.DATABASE_FILE, ".databases"])
     os.chown(config.DATABASE_FILE, user.pw_uid, user.pw_gid)
     os.chmod(config.DATABASE_FILE, 0o0640)
-    subprocess.check_call(['alembic', 'upgrade', 'head'])
+    subprocess.check_call(["alembic", "upgrade", "head"])
 
 
 def get_args() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog=__file__, description='Management '
-                                     'and testing utility for SecureDrop.')
-    parser.add_argument('-v', '--verbose', action='store_true')
-    parser.add_argument('--data-root',
-                        default=config.SECUREDROP_DATA_ROOT,
-                        help=('directory in which the securedrop '
-                              'data is stored'))
-    parser.add_argument('--store-dir',
-                        default=config.STORE_DIR,
-                        help=('directory in which the documents are stored'))
+    config = SecureDropConfig.get_current()
+    parser = argparse.ArgumentParser(
+        prog=__file__, description="Management " "and testing utility for SecureDrop."
+    )
+    parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument(
+        "--data-root",
+        default=config.SECUREDROP_DATA_ROOT,
+        help=("directory in which the securedrop " "data is stored"),
+    )
+    parser.add_argument(
+        "--store-dir",
+        default=config.STORE_DIR,
+        help=("directory in which the files are stored"),
+    )
     subps = parser.add_subparsers()
     # Add/remove journalists + admins
-    admin_subp = subps.add_parser('add-admin', help='Add an admin to the '
-                                  'application.')
+    admin_subp = subps.add_parser("add-admin", help="Add an admin to the " "application.")
     admin_subp.set_defaults(func=add_admin)
-    admin_subp_a = subps.add_parser('add_admin', help='^')
+    admin_subp_a = subps.add_parser("add_admin", help="^")
     admin_subp_a.set_defaults(func=add_admin)
-    journalist_subp = subps.add_parser('add-journalist', help='Add a '
-                                       'journalist to the application.')
+    journalist_subp = subps.add_parser(
+        "add-journalist", help="Add a " "journalist to the application."
+    )
     journalist_subp.set_defaults(func=add_journalist)
-    journalist_subp_a = subps.add_parser('add_journalist', help='^')
+    journalist_subp_a = subps.add_parser("add_journalist", help="^")
     journalist_subp_a.set_defaults(func=add_journalist)
-    delete_user_subp = subps.add_parser('delete-user', help='Delete a user '
-                                        'from the application.')
+    delete_user_subp = subps.add_parser(
+        "delete-user", help="Delete a user " "from the application."
+    )
     delete_user_subp.set_defaults(func=delete_user)
-    delete_user_subp_a = subps.add_parser('delete_user', help='^')
+    delete_user_subp_a = subps.add_parser("delete_user", help="^")
     delete_user_subp_a.set_defaults(func=delete_user)
+
+    remove_pending_sources_subp = subps.add_parser(
+        "remove-pending-sources", help="Remove pending sources from the server."
+    )
+    remove_pending_sources_subp.add_argument(
+        "--keep-most-recent",
+        default=100,
+        type=int,
+        help="how many of the most recent pending sources to keep",
+    )
+    remove_pending_sources_subp.set_defaults(func=remove_pending_sources)
 
     add_check_db_disconnect_parser(subps)
     add_check_fs_disconnect_parser(subps)
@@ -356,46 +373,53 @@ def get_args() -> argparse.ArgumentParser:
     add_list_fs_disconnect_parser(subps)
 
     # Cleanup the SD temp dir
-    set_clean_tmp_parser(subps, 'clean-tmp')
-    set_clean_tmp_parser(subps, 'clean_tmp')
+    set_clean_tmp_parser(subps, "clean-tmp")
+    set_clean_tmp_parser(subps, "clean_tmp")
 
-    init_db_subp = subps.add_parser('init-db', help='Initialize the database.\n')
-    init_db_subp.add_argument('-u', '--user',
-                              help='Unix user for the DB',
-                              required=True)
+    init_db_subp = subps.add_parser("init-db", help="Initialize the database.\n")
+    init_db_subp.add_argument("-u", "--user", help="Unix user for the DB", required=True)
     init_db_subp.set_defaults(func=init_db)
 
     add_were_there_submissions_today(subps)
 
     # Run WSGI app
-    run_subp = subps.add_parser('run', help='DANGER!!! ONLY FOR DEVELOPMENT '
-                                'USE. DO NOT USE IN PRODUCTION. Run the '
-                                'Werkzeug source and journalist WSGI apps.\n')
+    run_subp = subps.add_parser(
+        "run",
+        help="DANGER!!! ONLY FOR DEVELOPMENT "
+        "USE. DO NOT USE IN PRODUCTION. Run the "
+        "Werkzeug source and journalist WSGI apps.\n",
+    )
     run_subp.set_defaults(func=run)
 
     # Reset application state
-    reset_subp = subps.add_parser('reset', help='DANGER!!! ONLY FOR DEVELOPMENT '
-                                  'USE. DO NOT USE IN PRODUCTION. Clear the '
-                                  'SecureDrop application\'s state.\n')
+    reset_subp = subps.add_parser(
+        "reset",
+        help="DANGER!!! ONLY FOR DEVELOPMENT "
+        "USE. DO NOT USE IN PRODUCTION. Clear the "
+        "SecureDrop application's state.\n",
+    )
     reset_subp.set_defaults(func=reset)
     return parser
 
 
 def set_clean_tmp_parser(subps: _SubParsersAction, name: str) -> None:
-    parser = subps.add_parser(name, help='Cleanup the '
-                              'SecureDrop temp directory.')
+    config = SecureDropConfig.get_current()
+
+    parser = subps.add_parser(name, help="Cleanup the " "SecureDrop temp directory.")
     default_days = 7
     parser.add_argument(
-        '--days',
+        "--days",
         default=default_days,
         type=int,
-        help=('remove files not modified in a given number of DAYS '
-              '(default {} days)'.format(default_days)))
+        help=(
+            "remove files not modified in a given number of DAYS " f"(default {default_days} days)"
+        ),
+    )
     parser.add_argument(
-        '--directory',
+        "--directory",
         default=config.TEMP_DIR,
-        help=('remove old files from DIRECTORY '
-              '(default {})'.format(config.TEMP_DIR)))
+        help=("remove old files from DIRECTORY " f"(default {config.TEMP_DIR})"),
+    )
     parser.set_defaults(func=clean_tmp)
 
 
@@ -421,5 +445,5 @@ def _run_from_commandline() -> None:  # pragma: no cover
         sys.exit(signal.SIGINT)
 
 
-if __name__ == '__main__':  # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
     _run_from_commandline()

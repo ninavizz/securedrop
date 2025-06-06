@@ -7,17 +7,17 @@ source "${BASH_SOURCE%/*}/dev-deps"
 
 run_xvfb
 run_tor &
-run_redis &
 setup_vncauth
 run_x11vnc &
 urandom
-run_sass --force --update
+build_redwood
 maybe_create_config_py
-./i18n_tool.py translate-messages --compile
+run_redis
+pybabel compile --directory translations/
 
 mkdir -p "/tmp/test-results/logs"
 
-SUPPORTED_LOCALES=$(./i18n_tool.py list-locales)
+SUPPORTED_LOCALES=$(make --directory .. --quiet supported-locales | jq --raw-output 'join (" ")')
 LOCALES="${*:-${SUPPORTED_LOCALES}}"
 
 function locale_is_supported {
@@ -41,5 +41,5 @@ do
     --force-flaky --max-runs=3 \
     --page-layout \
     --durations 10 \
-    tests/pageslayout
+    tests/functional/pageslayout
 done

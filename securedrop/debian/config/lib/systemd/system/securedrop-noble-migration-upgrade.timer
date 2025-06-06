@@ -1,0 +1,10 @@
+[Unit]
+Description=Run noble migration
+
+[Timer]
+OnBootSec=3m
+OnUnitInactiveSec=3m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,66 +1,15 @@
-## Status
+Fixes #
 
-Ready for review / Work in progress
-
-## Description of Changes
-
-Fixes #.
-
-Changes proposed in this pull request:
-
-## Testing
-
-How should the reviewer test this PR?
-Write out any special testing steps here.
-
-## Deployment
-
-Any special considerations for deployment? Consider both:
-
-1. Upgrading existing production instances.
-2. New installs.
+## Test plan
+<!-- Delete this section if not applicable (e.g., some docs-only changes) -->
 
 ## Checklist
 
-### If you made changes to the server application code:
+<!-- If you leave any box below unchecked, please clarify where you may need support.
+     If you're unsure, that's fine — a reviewer can help you out. -->
 
-- [ ] Linting (`make lint`) and tests (`make test`) pass in the development container
-
-### If you made changes to `securedrop-admin`:
-
-- [ ] Linting and tests (`make -C admin test`) pass in the admin development container
-
-### If you made changes to the system configuration:
-
-- [ ] [Configuration tests](https://docs.securedrop.org/en/latest/development/testing_configuration_tests.html) pass
-
-### If you added or removed a file deployed with the application:
-
-- [ ] I have updated AppArmor rules to include the change
-
-### If you made non-trivial code changes:
-
-- [ ] I have written a test plan and validated it for this PR
-
-Choose one of the following:
-
-- [ ] I have opened a PR in the [docs repo](https://github.com/freedomofpress/securedrop-docs) for these changes, or will do so later
-- [ ] I would appreciate help with the documentation
-- [ ] These changes do not require documentation
-
-### If you added or updated a production code dependency:
-
-Production code dependencies are defined in:
-
-- `admin/requirements.in`
-- `admin/requirements-ansible.in`
-- `securedrop/requirements/python3/securedrop-app-code-requirements.in`
-
-If you changed another `requirements.in` file that applies only to development
-or testing environments, then no diff review is required, and you can skip
-(remove) this section.
-
-Choose one of the following:
-
-- [ ] I have performed a diff review and pasted the contents to [the packaging wiki](https://github.com/freedomofpress/securedrop-debian-packaging/wiki)
-- [ ] I would like someone else to do the diff review
+This change accounts for:
+- [ ] any required additional documentation
+- [ ] any necessary AppArmor changes (added or removed application files)
+- [ ] any impact on new SecureDrop installs and upgrades
+- [ ] our [dependency update policy](https://developers.securedrop.org/en/latest/dependency_updates.html)

@@ -1,9 +1,7 @@
-# -*- coding: utf-8 -*-
-
+import pytest
+import sqlalchemy
 from db import db
 from journalist_app import create_app
-import sqlalchemy
-import pytest
 
 from .helpers import random_bool, random_datetime
 
@@ -60,11 +58,7 @@ class DowngradeTester:
         """
         After downgrade, using `organization_name` in a query should raise an exception
         """
-        with self.app.app_context():
-            with pytest.raises(sqlalchemy.exc.OperationalError):
-                configs = db.engine.execute(
-                    sqlalchemy.text(
-                        "SELECT * FROM instance_config WHERE organization_name IS NOT NULL"
-                    )
-                ).fetchall()
-                assert len(configs) == 0
+        with self.app.app_context(), pytest.raises(sqlalchemy.exc.OperationalError):
+            db.engine.execute(
+                sqlalchemy.text("SELECT * FROM instance_config WHERE organization_name IS NOT NULL")
+            ).fetchall()

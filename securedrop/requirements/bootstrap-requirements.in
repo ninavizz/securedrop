@@ -1,0 +1,3 @@
+packaging>=22.0  # pypa/setuptools#4483
+setuptools-scm>=8.0.0
+wheel>=0.38.1

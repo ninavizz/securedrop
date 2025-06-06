@@ -1,0 +1,25 @@
+beautifulsoup4>=4.8.2,<4.9
+blinker
+coverage>=5.0  # #6091
+flaky
+html5validator
+mock
+pathlib2
+pillow>=10.3.0  # Safety 67136 for CVE-2024-28219
+pytest>=7.2.0
+pytest-xdist>=3.0.2
+pytest-cov>=2.12,<3
+pytest-mock
+requests[socks]>=2.31.0
+selenium>4.15.1
+tbselenium>=0.9
+urllib3>=1.26.5
+# mypy and co.
+mypy>=1.0
+sqlalchemy-stubs==0.4
+types-mock
+types-PyYAML
+types-redis
+types-requests
+types-setuptools>=70.0.0
+uv

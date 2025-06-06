@@ -1,25 +1,25 @@
 #!/opt/venvs/securedrop-app-code/bin/python
-# -*- coding: utf-8 -*-
 
 """
 Loads test data into the SecureDrop database.
 """
 
 import argparse
+import calendar
 import datetime
 import io
 import math
 import os
 import random
+import secrets
 import string
 from itertools import cycle
+from pathlib import Path
 from typing import Optional, Tuple
-
-from flask import current_app
-from sqlalchemy.exc import IntegrityError
 
 import journalist_app
 from db import db
+from encryption import EncryptionManager
 from models import (
     Journalist,
     JournalistLoginAttempt,
@@ -32,9 +32,11 @@ from models import (
     Submission,
 )
 from passphrases import PassphraseGenerator
-from sdconfig import config
+from sdconfig import SecureDropConfig
 from source_user import create_source_user
 from specialstrings import strings
+from sqlalchemy.exc import IntegrityError
+from store import Storage
 
 messages = cycle(strings)
 replies = cycle(strings)
@@ -47,7 +49,7 @@ def fraction(s: str) -> float:
     f = float(s)
     if 0 <= f <= 1:
         return f
-    raise ValueError("{} should be a float between 0 and 1".format(s))
+    raise ValueError(f"{s} should be a float between 0 and 1")
 
 
 def non_negative_int(s: str) -> int:
@@ -57,21 +59,21 @@ def non_negative_int(s: str) -> int:
     f = float(s)
     if f.is_integer() and f >= 0:
         return int(f)
-    raise ValueError("{} is not a non-negative integer".format(s))
+    raise ValueError(f"{s} is not a non-negative integer")
 
 
 def random_bool() -> bool:
     """
     Flips a coin.
     """
-    return random.choice((True, False))
+    return secrets.choice((True, False))
 
 
 def random_chars(count: int, chars: str = string.ascii_letters) -> str:
     """
     Returns a random string of len characters from the supplied list.
     """
-    return "".join([random.choice(chars) for _ in range(count)])
+    return "".join([secrets.choice(chars) for _ in range(count)])
 
 
 def random_datetime(nullable: bool) -> Optional[datetime.datetime]:
@@ -82,10 +84,17 @@ def random_datetime(nullable: bool) -> Optional[datetime.datetime]:
         return None
 
     now = datetime.datetime.now()
+    year = random.randint(2013, now.year)
+    max_day = 366 if calendar.isleap(year) else 365
+    day = random.randint(1, max_day)
+
+    # Calculate the month/day given the year
+    date = datetime.date(year, 1, 1) + datetime.timedelta(days=day - 1)
+
     return datetime.datetime(
-        year=random.randint(2013, now.year),
-        month=random.randint(1, now.month),
-        day=random.randint(1, now.day),
+        year=year,
+        month=date.month,
+        day=date.day,
         hour=random.randint(0, 23),
         minute=random.randint(0, 59),
         second=random.randint(0, 59),
@@ -177,42 +186,44 @@ def submit_message(source: Source, journalist_who_saw: Optional[Journalist]) -> 
     Adds a single message submitted by a source.
     """
     record_source_interaction(source)
-    fpath = current_app.storage.save_message_submission(
+    fpath = Storage.get_default().save_message_submission(
         source.filesystem_id,
         source.interaction_count,
         source.journalist_filename,
         next(messages),
     )
-    submission = Submission(source, fpath)
+    submission = Submission(source, fpath, Storage.get_default())
     db.session.add(submission)
-    db.session.flush()
 
     if journalist_who_saw:
-        seen_message = SeenMessage(message_id=submission.id, journalist_id=journalist_who_saw.id)
+        seen_message = SeenMessage(message=submission, journalist=journalist_who_saw)
         db.session.add(seen_message)
-        db.session.flush()
 
 
-def submit_file(source: Source, journalist_who_saw: Optional[Journalist]) -> None:
+def submit_file(source: Source, journalist_who_saw: Optional[Journalist], size: int = 0) -> None:
     """
     Adds a single file submitted by a source.
     """
     record_source_interaction(source)
-    fpath = current_app.storage.save_file_submission(
+    if not size:
+        file_bytes = b"This is an example of a plain text file upload"
+    else:
+        file_bytes = os.urandom(size * 1024)
+
+    fpath = Storage.get_default().save_file_submission(
         source.filesystem_id,
         source.interaction_count,
         source.journalist_filename,
         "memo.txt",
-        io.BytesIO(b"This is an example of a plain text file upload."),
+        io.BytesIO(file_bytes),
     )
-    submission = Submission(source, fpath)
+
+    submission = Submission(source, fpath, Storage.get_default())
     db.session.add(submission)
-    db.session.flush()
 
     if journalist_who_saw:
-        seen_file = SeenFile(file_id=submission.id, journalist_id=journalist_who_saw.id)
+        seen_file = SeenFile(file=submission, journalist=journalist_who_saw)
         db.session.add(seen_file)
-        db.session.flush()
 
 
 def add_reply(
@@ -222,32 +233,27 @@ def add_reply(
     Adds a single reply to a source.
     """
     record_source_interaction(source)
-    fname = "{}-{}-reply.gpg".format(source.interaction_count, source.journalist_filename)
-    current_app.crypto_util.encrypt(
-        next(replies),
-        [
-            current_app.crypto_util.get_fingerprint(source.filesystem_id),
-            config.JOURNALIST_KEY,
-        ],
-        current_app.storage.path(source.filesystem_id, fname),
+    fname = f"{source.interaction_count}-{source.journalist_filename}-reply.gpg"
+    EncryptionManager.get_default().encrypt_journalist_reply(
+        for_source=source,
+        reply_in=next(replies),
+        encrypted_reply_path_out=Path(Storage.get_default().path(source.filesystem_id, fname)),
     )
-
-    reply = Reply(journalist, source, fname)
+    reply = Reply(journalist, source, fname, Storage.get_default())
     db.session.add(reply)
-    db.session.flush()
 
     # Journalist who replied has seen the reply
-    author_seen_reply = SeenReply(reply_id=reply.id, journalist_id=journalist.id)
+    author_seen_reply = SeenReply(reply=reply, journalist=journalist)
     db.session.add(author_seen_reply)
 
     if journalist_who_saw:
-        other_seen_reply = SeenReply(reply_id=reply.id, journalist_id=journalist_who_saw.id)
+        other_seen_reply = SeenReply(reply=reply, journalist=journalist_who_saw)
         db.session.add(other_seen_reply)
 
     db.session.commit()
 
 
-def add_source() -> Tuple[Source, str]:
+def add_source(use_gpg: bool = False) -> Tuple[Source, str]:
     """
     Adds a single source.
     """
@@ -255,14 +261,30 @@ def add_source() -> Tuple[Source, str]:
     source_user = create_source_user(
         db_session=db.session,
         source_passphrase=codename,
-        source_app_storage=current_app.storage,
+        source_app_storage=Storage.get_default(),
     )
     source = source_user.get_db_record()
-    source.pending = False
-    db.session.commit()
+    if use_gpg:
+        manager = EncryptionManager.get_default()
+        gen_key_input = manager.gpg().gen_key_input(
+            passphrase=source_user.gpg_secret,
+            name_email=source_user.filesystem_id,
+            key_type="RSA",
+            key_length=4096,
+            name_real="Source Key",
+            creation_date="2013-05-14",
+            # '0' is the magic value that tells GPG's batch key generation not
+            # to set an expiration date.
+            expire_date="0",
+        )
+        manager.gpg().gen_key(gen_key_input)
 
-    # Generate source key
-    current_app.crypto_util.genkeypair(source_user)
+        # Delete the Sequoia-generated keys
+        source.pgp_public_key = None
+        source.pgp_fingerprint = None
+        source.pgp_secret_key = None
+        db.session.add(source)
+    db.session.commit()
 
     return source, codename
 
@@ -335,14 +357,18 @@ def add_sources(args: argparse.Namespace, journalists: Tuple[Journalist, ...]) -
     )
 
     for i in range(1, args.source_count + 1):
-        source, codename = add_source()
+        source, codename = add_source(use_gpg=args.gpg)
 
         for _ in range(args.messages_per_source):
-            submit_message(source, random.choice(journalists) if seen_message_count > 0 else None)
+            submit_message(source, secrets.choice(journalists) if seen_message_count > 0 else None)
             seen_message_count -= 1
 
         for _ in range(args.files_per_source):
-            submit_file(source, random.choice(journalists) if seen_file_count > 0 else None)
+            submit_file(
+                source,
+                secrets.choice(journalists) if seen_file_count > 0 else None,
+                args.random_file_size,
+            )
             seen_file_count -= 1
 
         if i <= starred_sources_count:
@@ -350,21 +376,15 @@ def add_sources(args: argparse.Namespace, journalists: Tuple[Journalist, ...]) -
 
         if i <= replied_sources_count:
             for _ in range(args.replies_per_source):
-                journalist_who_replied = random.choice([dellsberg, journalist_to_be_deleted])
-                journalist_who_saw = random.choice([default_journalist, None])
+                journalist_who_replied = secrets.choice([dellsberg, journalist_to_be_deleted])
+                journalist_who_saw = secrets.choice([default_journalist, None])
                 add_reply(source, journalist_who_replied, journalist_who_saw)
 
         print(
-            "Created source {}/{} (codename: '{}', journalist designation '{}', "
-            "files: {}, messages: {}, replies: {})".format(
-                i,
-                args.source_count,
-                codename,
-                source.journalist_designation,
-                args.files_per_source,
-                args.messages_per_source,
-                args.replies_per_source if i <= replied_sources_count else 0,
-            )
+            f"Created source {i}/{args.source_count} (codename: '{codename}', "
+            f"journalist designation '{source.journalist_designation}', "
+            f"files: {args.files_per_source}, messages: {args.messages_per_source}, "
+            f"replies: {args.replies_per_source if i <= replied_sources_count else 0})"
         )
 
 
@@ -378,6 +398,7 @@ def load(args: argparse.Namespace) -> None:
     if not os.environ.get("SECUREDROP_ENV"):
         os.environ["SECUREDROP_ENV"] = "dev"
 
+    config = SecureDropConfig.get_current()
     app = journalist_app.create_app(config)
     with app.app_context():
         journalists = create_default_journalists()
@@ -388,7 +409,7 @@ def load(args: argparse.Namespace) -> None:
 
         # delete one journalist
         _, _, journalist_to_be_deleted = journalists
-        db.session.delete(journalist_to_be_deleted)
+        journalist_to_be_deleted.delete()
         db.session.commit()
 
 
@@ -461,6 +482,19 @@ def parse_arguments() -> argparse.Namespace:
         "--seed",
         help=("Random number seed (for reproducible datasets)"),
     )
+    parser.add_argument(
+        "--gpg",
+        help="Create sources with a key pair stored in GPG",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--random-file-size",
+        help="Create random submission files with size specified (in KB)",
+        type=non_negative_int,
+        default=0,
+    )
+
     return parser.parse_args()
 
 

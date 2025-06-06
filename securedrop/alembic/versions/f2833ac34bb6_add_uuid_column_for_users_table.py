@@ -5,10 +5,11 @@ Revises: 6db892e17271
 Create Date: 2018-08-13 18:10:19.914274
 
 """
-from alembic import op
-import sqlalchemy as sa
+
 import uuid
 
+import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "f2833ac34bb6"
@@ -17,7 +18,7 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     conn = op.get_bind()
     conn.execute("PRAGMA legacy_alter_table=ON")
     # Save existing journalist table.
@@ -43,8 +44,8 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("uuid", sa.String(length=36), nullable=False),
         sa.Column("username", sa.String(length=255), nullable=False),
-        sa.Column("pw_salt", sa.Binary(), nullable=True),
-        sa.Column("pw_hash", sa.Binary(), nullable=True),
+        sa.Column("pw_salt", sa.LargeBinary(), nullable=True),
+        sa.Column("pw_hash", sa.LargeBinary(), nullable=True),
         sa.Column("passphrase_hash", sa.String(length=256), nullable=True),
         sa.Column("is_admin", sa.Boolean(), nullable=True),
         sa.Column("otp_secret", sa.String(length=16), nullable=True),
@@ -72,6 +73,6 @@ def upgrade():
     op.drop_table("journalists_tmp")
 
 
-def downgrade():
+def downgrade() -> None:
     with op.batch_alter_table("journalists", schema=None) as batch_op:
         batch_op.drop_column("uuid")

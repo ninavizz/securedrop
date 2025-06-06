@@ -4,7 +4,7 @@
 # for storage as artifacts on the build, so devs can review via web.
 set -e
 set -u
-BASE_OS="${BASE_OS:-focal}"
+UBUNTU_VERSION="${UBUNTU_VERSION:-focal}"
 
 
 TOPLEVEL="$(git rev-parse --show-toplevel)"
@@ -12,7 +12,7 @@ TOPLEVEL="$(git rev-parse --show-toplevel)"
 . "${TOPLEVEL}/devops/gce-nested/ci-env.sh"
 
 REMOTE_IP="$(gcloud_call compute instances describe \
-            "${JOB_NAME}-${BUILD_NUM}" \
+            "${FULL_JOB_ID}" \
             --format="value(networkInterfaces[0].accessConfigs.natIP)")"
 SSH_TARGET="${SSH_USER_NAME}@${REMOTE_IP}"
 SSH_OPTS=(-i "$SSH_PRIVKEY" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null")
@@ -44,7 +44,6 @@ function copy_securedrop_repo() {
       --exclude '*.venv' \
       --exclude .python3 \
       --exclude .mypy_cache \
-      --exclude securedrop/.sass-cache \
       --exclude .gce.creds \
       --exclude '*.creds' \
       "${TOPLEVEL}/" "${SSH_TARGET}:~/securedrop-source"
@@ -57,5 +56,6 @@ copy_securedrop_repo
 # so register a trap to ensure the fetch always runs.
 trap fetch_junit_test_results EXIT
 
-ssh_gce "make build-debs-notest"
-ssh_gce "make staging"
+ssh_gce "UBUNTU_VERSION=\"${UBUNTU_VERSION}\" make build-debs-notest"
+ssh_gce "UBUNTU_VERSION=\"${UBUNTU_VERSION}\" make build-debs-ossec-notest"
+ssh_gce "UBUNTU_VERSION=\"${UBUNTU_VERSION}\" make staging"

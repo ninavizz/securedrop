@@ -1,0 +1,49 @@
+ARG UBUNTU_VERSION=focal
+FROM ubuntu:${UBUNTU_VERSION}
+# Redeclare $UBUNTU_VERSION after "FROM" so that we can make it available as an
+# environment variable.
+ARG UBUNTU_VERSION=focal
+ENV UBUNTU_VERSION=${UBUNTU_VERSION}
+ARG USER_NAME
+ENV USER_NAME ${USER_NAME:-root}
+ARG USER_ID
+ENV USER_ID ${USER_ID:-0}
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+                       apache2-dev coreutils vim \
+                       python3-pip python3-all python3-venv virtualenv python3-dev libssl-dev \
+                       gnupg2 redis-server git curl wget jq \
+                       enchant-2 libffi-dev sqlite3 gettext sudo tor basez pkg-config
+
+# Install Rust using the same steps as <https://github.com/rust-lang/docker-rust>
+# 1) Download rustup-init and verify it matches hardcoded checksum
+# 2) Run it to install rustup and the rustc/cargo "minimal" toolchain
+# 3) Add `/opt/cargo/bin` to $PATH, which is where cargo & rustc are installed
+ENV RUST_VERSION 1.87.0
+ENV RUSTUP_VERSION 1.28.2
+ENV RUSTUP_INIT_SHA256 20a06e644b0d9bd2fbdbfd52d42540bdde820ea7df86e92e533c073da0cdd43c
+ENV RUSTUP_HOME /opt/rustup
+ENV CARGO_HOME /opt/cargo
+
+RUN TMPDIR=`mktemp -d` && cd ${TMPDIR} \
+        && curl --proto '=https' --tlsv1.2 -OO -sSf https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/x86_64-unknown-linux-gnu/rustup-init \
+        && echo "${RUSTUP_INIT_SHA256} *rustup-init" | sha256sum -c - \
+        && chmod +x rustup-init \
+        && ./rustup-init --default-toolchain=${RUST_VERSION} --profile minimal -y \
+        && cd && rm -rf ${TMPDIR}
+
+COPY requirements requirements
+RUN python3 -m venv /opt/venvs/securedrop-app-code && \
+    /opt/venvs/securedrop-app-code/bin/pip3 install --no-deps --require-hashes -r requirements/${UBUNTU_VERSION}/bootstrap-requirements.txt && \
+    /opt/venvs/securedrop-app-code/bin/pip3 install --no-deps --require-hashes -r requirements/${UBUNTU_VERSION}/test-requirements.txt && \
+    /opt/venvs/securedrop-app-code/bin/pip3 install --no-deps --require-hashes -r requirements/${UBUNTU_VERSION}/requirements.txt
+
+# noble ships with an `ubuntu` user that has id 1000, which conflicts with podman's ID mapping
+RUN if id ubuntu; then deluser ubuntu; fi
+
+RUN if test $USER_NAME != root ; then useradd --no-create-home --home-dir /tmp --uid $USER_ID $USER_NAME && echo "$USER_NAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers ; fi && \
+    chown -R $USER_NAME:$USER_NAME /opt/venvs/
+
+STOPSIGNAL SIGKILL
+
+EXPOSE 8080 8081 5909

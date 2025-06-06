@@ -1,0 +1,126 @@
+[project]
+name = "securedrop"
+requires-python = ">=3.8"
+
+[tool.ruff]
+line-length = 100
+extend-include = ["securedrop/scripts/*"]
+[tool.ruff.lint]
+select = [
+    # flake8-bugbear
+    "B",
+    # pycodestyle errors
+    "E",
+    # pyflakes
+    "F",
+    # isort
+    "I",
+    # flake8-gettext
+    "INT",
+    # flake8-pie
+    "PIE",
+    # pylint
+    "PL",
+    # flake8-pytest-style
+    "PT",
+    # flake8-pyi
+    "PYI",
+    # flake8-return
+    "RET",
+    # flake8-bandit
+    "S",
+    # flake8-simplify
+    "SIM",
+    # pyupgrade
+    "UP",
+    # pycodestyle warnings
+    "W",
+    # Unused noqa directive
+    "RUF100",
+]
+ignore = [
+    # too many raise within except without `from`
+    "B904",
+    # incompatible with sqlalchemy https://github.com/astral-sh/ruff/issues/4560
+    "E712",
+    # code complexity checks that we fail
+    "PLR0912", "PLR0913", "PLR0915",
+    # sqlalchemy false positives in tests
+    "PLR0124",
+    # magic-value-comparison, too many violations for now
+    "PLR2004",
+    # we use global variables for singletons, sorry
+    "PLW0603",
+    # loop assignment target being overwritten, not a big deal
+    "PLW2901",
+    # too broad exception type
+    "PT011",
+    # usefixtures() isn't as user-friendly
+    "PT019",
+    # doesn't understand flask.abort()
+    "RET503",
+    # superflous-else- rules, find they hurt readability
+    "RET505", "RET506", "RET507", "RET508",
+    # yes, we bind to 0.0.0.0
+    "S104",
+    # hardcoded passwords, lots of false positives
+    "S105", "S106",
+    # we intentionally don't log stuff sometimes
+    "S110",
+    # flags every instance of subprocess
+    "S603",
+    # we trust $PATH isn't hijacked
+    "S607",
+    # Find contextlib.suppress() is harder to read
+    "SIM105",
+    # Find ternary statements harder to read
+    "SIM108",
+    # use context handler for opening files, too many violations for now
+    "SIM115",
+    # nested if and with statements, too many violations for now
+    "SIM102", "SIM117",
+]
+
+[tool.ruff.lint.isort]
+# ruff's isort is smart enough to know these are first party, but let's treat
+# them as third-party to match O.G. isort until we fix our package layout
+known-third-party = ["journalist_app", "management", "source_app", "tests"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/test**.py" = [
+    # use of `assert`
+    "S101",
+    # weak crypto
+    "S311",
+
+    # insecure temporary file/directory
+    "S108",
+    # HTTP request without timeout
+    "S113",
+]
+"securedrop/loaddata.py" = [
+    # ok to use weak crypto here
+    "S311",
+]
+"securedrop/pretty_bad_protocol/*.py" = [
+    # legacy code that still uses `assert`
+    "S101",
+    # too much % formatting, not worth fixing for now
+    "UP031",
+]
+
+[tool.mypy]
+ignore_missing_imports = true
+no_implicit_optional = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+warn_unused_configs = true
+python_version = "3.8"
+plugins = "sqlmypy"
+
+[[tool.mypy.overrides]]
+module = [
+    "securedrop.tests.*",
+    "admin.tests.*"
+]
+disallow_untyped_defs = false

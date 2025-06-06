@@ -41,10 +41,23 @@
     admin_net_cidr: "{{ '/'.join([admin_net_info.network, admin_net_info.netmask])|ipaddr('cidr') }}"
   delegate_to: localhost
 
+- name: Check iptables-persistent was installed
+  stat:
+    path: /etc/iptables/
+  register: etc_iptables_check
+
+- name: Install iptables-persistent if needed
+  apt:
+    name: iptables-persistent
+    state: present
+    update_cache: yes
+    cache_valid_time: 3600
+  when: not etc_iptables_check.stat.exists
+
 - name: Copy IPv4 iptables rules.
   template:
     src: rules_v4
-    dest: "{{ iptables_v4_path }}"
+    dest: "/etc/iptables/rules.v4"
     owner: root
     mode: "0644"
   notify: drop flag for reboot
@@ -52,6 +65,6 @@
 - name: Copy IPv6 iptables rules.
   copy:
     src: iptables_rules_v6
-    dest: "{{ iptables_v6_path }}"
+    dest: "/etc/iptables/rules.v6"
     owner: root
     mode: "0644"

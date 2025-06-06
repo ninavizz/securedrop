@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>SecureDrop Demo Server</title>
+        <link rel="stylesheet" href="/assets/css/demo.css">
+    </head>
+    <body>
+        <!-- Apache-licensed "content copy" icon from https://material.io/resources/icons/ -->
+        <svg class="hidden">
+            <symbol id="copy-icon" viewBox="0 0 24 24">
+                <path d="M0 0h24v24H0z" fill="none"></path>
+                <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" fill="#ffffff"></path>
+            </symbol>
+        </svg>
+
+        <img src="https://securedrop.org/static/images/_site_title.svg">
+        <h1>Demo Server</h1>
+        <p>This is a demonstration SecureDrop instance. It exists to:</p>
+        <ul>
+            <li>let anyone explore how SecureDrop works</li>
+            <li>support efforts to document and localize SecureDrop, letting contributors work with the user interface in its current form</li>
+        </ul>
+        <p><strong>The demo instance is reset every day. Anything you do here will be erased then.</strong></p>
+        <p>You can reach the source and journalist interfaces of the demo at:</p>
+        <ul>
+            <li><a href="https://demo-source.securedrop.org">Source Interface</a></li>
+            <li><a href="https://demo-journalist.securedrop.org">Journalist Interface</a></li>
+        </ul>
+        <p>You can access the demo using any browser. Real-world SecureDrop instances are only accessible through the Tor anonymity network, preferably using <a href="https://www.torproject.org/">Tor Browser</a>.</p>
+        <p>For the Journalist Interface, you will need to use one of the default test accounts, as described in our <a href="https://developers.securedrop.org/en/latest/setup_development.html">development documentation</a>. For convenience, the details are included here, but if you have trouble, check the official documentation to make sure these instructions have not diverged.</p>
+        <table>
+            <tbody>
+                <tr>
+                    <th>Username</th>
+                    <td><span id="usernamevalue">journalist</span>
+                        <span class="copy-btn" data-target="#usernamevalue"><svg width="18" height="18"><use href="#copy-icon"></use></svg></span>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th>Passphrase</th>
+                    <td><span id="passphrasevalue">correct horse battery staple profanity oil chewy</span>
+                        <span class="copy-btn" data-target="#passphrasevalue"><svg width="18" height="18"><use href="#copy-icon"></use></svg></span>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th>Current TOTP token</th>
+                    <td id="totp">
+                        <span id="totpvalue">......</span>
+                        <span class="copy-btn" data-target="#totpvalue"><svg width="18" height="18"><use href="#copy-icon"></use></svg></span>
+                        <span id="totpttl"></span>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th>TOTP secret</th>
+                    <td><span id="totpsecretvalue">JHCOGO7VCER3EJ4L</span>
+                        <span class="copy-btn" data-target="#totpsecretvalue"><svg width="18" height="18"><use href="#copy-icon"></use></svg></span>
+                    </td>
+                </tr>
+
+            </tbody>
+        </table>
+        <script src="/assets/js/jsOTP.js"></script>
+        <script>
+            // Add "copy to clipboard" functionality to all copy buttons
+            document.querySelectorAll(".copy-btn").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    const selector = btn.dataset.target;
+                    const text = document.querySelector(selector).textContent.trim();
+                    navigator.clipboard.writeText(text);
+
+                    // Display exactly one ephemeral success message
+                    const cell = btn.parentNode;
+                    const existing = cell.querySelector(".copiedtip");
+                    if (existing) {
+                        existing.remove();
+                    }
+                    const tip = document.createElement("span");
+                    tip.className = "copiedtip";
+                    tip.textContent = "Copied to clipboard!";
+                    cell.appendChild(tip);
+                    setTimeout(() => tip.remove(), 2500);
+                });
+            });
+
+            // Cycle through TOTP codes
+            function updateOTP() {
+                const secret = document.getElementById("totpsecretvalue").textContent.trim();
+                const totp = new jsOTP.totp();
+                document.getElementById("totpvalue").textContent = totp.getOtp(secret);
+
+                const epoch = Math.round(new Date().getTime() / 1000.0);
+                const remaining = 30 - (epoch % 30);
+                const seconds = `${remaining}`.padStart(2, "0");
+                document.getElementById("totpttl").textContent = `(:${seconds} remaining)`;
+
+                if (remaining < 10) {
+                    document.getElementById("totp").classList.add("expiring");
+                } else {
+                    document.getElementById("totp").classList.remove("expiring");
+                }
+            }
+            updateOTP();
+            setInterval(updateOTP, 1000);
+        </script>
+    </body>
+</html>

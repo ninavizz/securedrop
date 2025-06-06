@@ -1,0 +1,12 @@
+[Unit]
+Description=Run noble migration
+
+RefuseManualStop=true
+
+[Service]
+Type=exec
+Environment=RUST_LOG=debug
+Environment=LAUNCHED_BY_SYSTEMD=1
+ExecStart=/usr/bin/securedrop-noble-migration-upgrade
+User=root
+KillMode=process

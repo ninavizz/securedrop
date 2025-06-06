@@ -5,9 +5,9 @@ Revises: 35513370ba0d
 Create Date: 2020-09-15 22:34:50.116403
 
 """
-from alembic import op
-import sqlalchemy as sa
 
+import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "48a75abc0121"
@@ -16,7 +16,7 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     op.create_table(
         "seen_files",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -51,7 +51,7 @@ def upgrade():
     )
 
 
-def downgrade():
+def downgrade() -> None:
     op.drop_table("seen_files")
     op.drop_table("seen_messages")
     op.drop_table("seen_replies")

@@ -1,32 +1,69 @@
 import json
+import re
 import subprocess
+import typing
+from hmac import compare_digest
 
 import werkzeug
-from flask import flash
-from flask import redirect
-from flask import render_template
-from flask import current_app
-from flask import url_for
-from markupsafe import Markup
-
-import typing
-
-import re
-
+from flask import current_app, flash, redirect, render_template, url_for
+from flask.sessions import SessionMixin
+from flask_babel import gettext
+from markupsafe import Markup, escape
 from source_user import SourceUser
+from store import Storage
 
 if typing.TYPE_CHECKING:
     from typing import Optional
 
 
-def clear_session_and_redirect_to_logged_out_page(flask_session: typing.Dict) -> werkzeug.Response:
-    msg = render_template('session_timeout.html')
+def codename_detected(message: str, codename: str) -> bool:
+    """
+    Check for codenames in incoming messages. including case where user copy/pasted
+    from /generate or the codename widget on the same page
+    """
+    message = message.strip()
+
+    return compare_digest(message.strip().encode("utf-8"), codename.encode("utf-8"))
+
+
+def flash_msg(
+    category: str,
+    declarative: "Optional[str]",
+    *msg_contents: "str",
+) -> None:
+    """
+    Render flash message with a (currently) optional declarative heading.
+    """
+    contents = Markup("<br>".join([escape(part) for part in msg_contents]))
+
+    msg = render_template(
+        "flash_message.html",
+        declarative=declarative,
+        msg_contents=contents,
+    )
+    flash(Markup(msg), category)
+
+
+def clear_session_and_redirect_to_logged_out_page(flask_session: SessionMixin) -> werkzeug.Response:
+    msg = render_template(
+        "flash_message.html",
+        declarative=gettext("Important"),
+        msg_contents=Markup(
+            gettext(
+                "You have been logged out due to inactivity or a problem with "
+                'your session. Click the <img src={icon} alt="" width="16" '
+                'height="16">&nbsp;<b>New Identity</b> button in your Tor '
+                "Browser's toolbar before moving on. This will clear your Tor "
+                "Browser activity data on this device."
+            ).format(icon=url_for("static", filename="i/torbroom.png"))
+        ),
+    )
 
     # Clear the session after we render the message so it's localized
     flask_session.clear()
 
-    flash(Markup(msg), "important")
-    return redirect(url_for('main.index'))
+    flash(Markup(msg), "error")
+    return redirect(url_for("main.index"))
 
 
 def normalize_timestamps(logged_in_source: SourceUser) -> None:
@@ -36,40 +73,40 @@ def normalize_timestamps(logged_in_source: SourceUser) -> None:
     #301.
     """
     source_in_db = logged_in_source.get_db_record()
-    sub_paths = [current_app.storage.path(logged_in_source.filesystem_id, submission.filename)
-                 for submission in source_in_db.submissions]
+    sub_paths = [
+        Storage.get_default().path(logged_in_source.filesystem_id, submission.filename)
+        for submission in source_in_db.submissions
+    ]
     if len(sub_paths) > 1:
         args = ["touch", "--no-create"]
         args.extend(sub_paths)
         rc = subprocess.call(args)
         if rc != 0:
             current_app.logger.warning(
-                "Couldn't normalize submission "
-                "timestamps (touch exited with %d)" %
-                rc)
+                f"Couldn't normalize submission timestamps (touch exited with {rc})"
+            )
 
 
-def check_url_file(path: str, regexp: str) -> 'Optional[str]':
+def check_url_file(path: str, regexp: str) -> "Optional[str]":
     """
     Check that a file exists at the path given and contains a single line
     matching the regexp. Used for checking the source interface address
     files in /var/lib/securedrop (as the Apache user can't read Tor config)
     """
     try:
-        f = open(path, "r")
+        f = open(path)
         contents = f.readline().strip()
         f.close()
         if re.match(regexp, contents):
             return contents
         else:
             return None
-    except IOError:
+    except OSError:
         return None
 
 
-def get_sourcev3_url() -> 'Optional[str]':
-    return check_url_file("/var/lib/securedrop/source_v3_url",
-                          r"^[a-z0-9]{56}\.onion$")
+def get_sourcev3_url() -> "Optional[str]":
+    return check_url_file("/var/lib/securedrop/source_v3_url", r"^[a-z0-9]{56}\.onion$")
 
 
 def fit_codenames_into_cookie(codenames: dict) -> dict:
@@ -82,9 +119,11 @@ def fit_codenames_into_cookie(codenames: dict) -> dict:
     serialized = json.dumps(codenames).encode()
     if len(codenames) > 1 and len(serialized) > 4000:  # werkzeug.Response.max_cookie_size = 4093
         if current_app:
-            current_app.logger.warn(f"Popping oldest of {len(codenames)} "
-                                    f"codenames ({len(serialized)} bytes) to "
-                                    f"fit within maximum cookie size")
+            current_app.logger.warn(
+                f"Popping oldest of {len(codenames)} "
+                f"codenames ({len(serialized)} bytes) to "
+                f"fit within maximum cookie size"
+            )
         del codenames[list(codenames)[0]]  # FIFO
 
         return fit_codenames_into_cookie(codenames)

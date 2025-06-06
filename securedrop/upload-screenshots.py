@@ -1,25 +1,21 @@
 #!/usr/bin/env python3
 
-from glob import glob
-from urllib.parse import urljoin
-
 import os
 import re
-import requests
 import sys
+from glob import glob
 
 # Used to generate URLs for API endpoints and links; exposed as argument
-from typing import List
+from typing import Dict, List, Tuple
+from urllib.parse import urljoin
 
-from typing import Tuple
-
-from typing import Dict
+import requests
 
 DEFAULT_BASE_URL = "https://weblate.securedrop.org"
 
 # Where we look for screenshots: the page layout test results in English
 SCREENSHOTS_DIRECTORY = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "tests/pageslayout/screenshots/en_US")
+    os.path.join(os.path.dirname(__file__), "tests/functional/pageslayout/screenshots/en_US")
 )
 
 # What pattern we expect them to match
@@ -55,9 +51,7 @@ def main() -> None:
 
     screenshot_files = glob(os.path.join(SCREENSHOTS_DIRECTORY, SCREENSHOTS_GLOB))
     if len(screenshot_files) == 0:
-        print(
-            "Page layout test results not found. Run this command from the SecureDrop"
-        )
+        print("Page layout test results not found. Run this command from the SecureDrop")
         print("base directory to generate the English language screenshots:\n")
         print("  LOCALES=en_US make translation-test")
         print("\nThis will take several minutes to complete.")
@@ -91,7 +85,6 @@ class WeblateUploader:
         request_limit: int,
         canonicalization_rules: List[Tuple[str, str]],
     ) -> None:
-
         if len(token) != 40:
             raise BadOrMissingTokenError(
                 "API token is not in expected 40 character format.", base_url
@@ -113,7 +106,7 @@ class WeblateUploader:
         self.session = requests.Session()
         headers = {
             "User-Agent": self.user_agent,
-            "Authorization": "Token {}".format(token),
+            "Authorization": f"Token {token}",
         }
         self.session.headers.update(headers)
 
@@ -126,7 +119,7 @@ class WeblateUploader:
 
         # API results are paginated, so we must loop through a set of results and
         # concatenate them.
-        screenshots = []  # type: List[Dict[str, str]]
+        screenshots: List[Dict[str, str]] = []
         request_count = 0
         while next_screenshots_url is not None:
             response = self.session.get(next_screenshots_url)
@@ -136,9 +129,7 @@ class WeblateUploader:
             screenshots += screenshots_page["results"]
             request_count += 1
             if request_count >= self.request_limit:
-                msg = "Request limit of {} exceeded. Aborting.".format(
-                    self.request_limit
-                )
+                msg = f"Request limit of {self.request_limit} exceeded. Aborting."
                 raise RequestLimitError(msg)
         return screenshots
 
@@ -176,7 +167,7 @@ class WeblateUploader:
             image = {"image": open(file, "rb")}
 
             if existing_screenshot_url is not None:
-                print("Replacing existing screenshot {}".format(basename))
+                print(f"Replacing existing screenshot {basename}")
                 response = self.session.post(existing_screenshot_url, files=image)
                 response.raise_for_status()
             else:
@@ -185,23 +176,17 @@ class WeblateUploader:
                     "project_slug": "securedrop",
                     "component_slug": "securedrop",
                 }
-                print("Uploading new screenshot {}".format(basename))
-                response = self.session.post(
-                    self.screenshots_endpoint, files=image, data=fields
-                )
+                print(f"Uploading new screenshot {basename}")
+                response = self.session.post(self.screenshots_endpoint, files=image, data=fields)
                 response.raise_for_status()
 
-        result_url = urljoin(
-            self.base_url, "screenshots/{}/{}".format(self.project, self.component)
-        )
-        print("Upload complete. Visit {} to review the results.".format(result_url))
+        result_url = urljoin(self.base_url, f"screenshots/{self.project}/{self.component}")
+        print(f"Upload complete. Visit {result_url} to review the results.")
 
 
 class BadOrMissingTokenError(Exception):
     def __init__(self, reason: str, base_url: str) -> None:
-        reason += " Obtain token via {}".format(
-            urljoin(base_url, "accounts/profile/#api")
-        )
+        reason += " Obtain token via {}".format(urljoin(base_url, "accounts/profile/#api"))
         super().__init__(reason)
 
 

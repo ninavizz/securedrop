@@ -5,9 +5,9 @@ Revises: 92fba0be98e9
 Create Date: 2021-05-10 18:15:56.071880
 
 """
-from alembic import op
-import sqlalchemy as sa
 
+import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "b060f38c0c31"
@@ -16,12 +16,12 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     with op.batch_alter_table("sources", schema=None) as batch_op:
         batch_op.drop_column("flagged")
 
 
-def downgrade():
+def downgrade() -> None:
     # You might be tempted to try Alembic's batch_ops for the
     # downgrade too. Don't. SQLite's unnamed check constraints require
     # kludges.

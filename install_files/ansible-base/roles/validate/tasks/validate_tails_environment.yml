@@ -2,20 +2,19 @@
   find:
     name: "/etc"
     patterns: "os-release"
-    contains: "^TAILS_PRODUCT_NAME="
+    contains: "^NAME=\"Tails\""
   register: tails_os_string
 
 - name: Confirm host OS is Tails.
   assert:
     that:
       - ansible_lsb.id == "Tails" or tails_os_string.matched
-      - ansible_lsb.major_release|int >= 10
     msg: >-
-      SecureDrop requires Tails 4 or greater for workstation environments.
+      SecureDrop requires Tails 6 or greater for workstation environments.
 
 - name: Check for persistence volume.
   stat:
-    path: /live/persistence/TailsData_unlocked/persistence.conf
+    path: "{{ item }}"
   register: tails_persistence_check_result
   with_items:
     - /live/persistence/TailsData_unlocked/persistence.conf
@@ -78,7 +77,7 @@
       file under `~/Persistent/securedrop/install_files/ansible-base/ and
       retry the install command.
   when:
-   - v3_source_file.stat.exists
+    - v3_source_file.stat.exists
 
 - name: Confirm that the Tor keys file is present
   assert:
